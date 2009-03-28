@@ -63,16 +63,13 @@ class Matcher:
     def clause_methods_of(self, namespace):
         """ return list of clause methods """
         methods = dir(namespace)
-        # filter by clause names
-        methods = filter(self.has_clause_prefix, methods)
 
         # filter functions
-        # TODO: restore previous loads
-        for m in methods:
-            import_stmt = "from %s import %s" % (namespace.__name__, m)
-            exec import_stmt in globals()
-        item_type = lambda x: type(eval(x))
+        item_type = lambda x: type(vars(namespace)[x])
         methods = filter(lambda x: item_type(x) == types.FunctionType, methods)
+
+        # filter by clause names
+        methods = filter(self.has_clause_prefix, methods)
 
         return methods
         
