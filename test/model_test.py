@@ -33,48 +33,67 @@ class ExtractFeatureTestCase(unittest.TestCase):
         assert len(extracts) == 7
 
 class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
-    pass
-
-class ConvertingStringIntoMethodNameTestCase(unittest.TestCase):
     def setUp(self):
-        #self.step_filename = 'sample_step.py'
-        self.clauses = ['Given I have some text as given',
+        step_filename = 'sample_step.py'
+        import os
+        self.sample_step_namespace = __import__(step_filename.rsplit(os.extsep, 2)[0])
+        self.clauses = ['Given  I have some text as given',
                         'And   another text for additional given',
                         'When I write when',
                         'And  another text for additional when',
-                        'Then I have then',
+                        'Then I have then	some sp3c!al,, characters?!',
                         'And  another then',
                         ]
+        self.matcher = model.Matcher()
+
+    def test_find_clause_methods(self):
+        methods = self.matcher.clause_methods_of(self.sample_step_namespace)
+        assert sorted(methods) == ['given_another_text_for_additional_when', 
+                                   'given_i_have_some_text_as_given']
+
+class ConvertingStringIntoMethodNameTestCase(unittest.TestCase):
+    def setUp(self):
+        self.clauses = ['Given  I have some text as given',
+                        'And   another text for additional given',
+                        'When I write when',
+                        'And  another text for additional when',
+                        'Then I have then	some sp3c!al,, characters?!',
+                        'And  another then',
+                        ]
+        self.matcher = model.Matcher()
 
     def test_that_continuous_spaces_are_turned_into_an_underscores(self):
-        methodname = model.clause2methodname(self.clauses[1])
+        methodname = self.matcher.clause2methodname(self.clauses[0])
         assert ' ' not in methodname
         assert '_' in methodname
-        assert methodname.count('_') == 5
+        assert methodname.count('_') == 6
 
     def test_that_uppercase_turned_into_lowercase(self):
-        methodname = model.clause2methodname(self.clauses[0])
+        methodname = self.matcher.clause2methodname(self.clauses[0])
         assert 'I' not in methodname
         assert 'G' not in methodname
         assert 'i' in methodname
         assert 'g' in methodname
 
     def test_that_and_becomes_previous_clause_name(self):
-        convert = model.clause2methodname
-        converted = [model.clause2methodname(c) for c in self.clauses]
+        converted = [self.matcher.clause2methodname(c) for c in self.clauses]
         assert converted[1].startswith('given_')
         assert converted[3].startswith('when_')
         assert converted[5].startswith('then_')
 
-    #def test_both_underscore_and_lowercase(self):
-    #    method_names = [model.clause2methodname(c) for c in self.clauses]
-    #    assert method_names == ['given_I_have_some_text_as_given',
-    #                            'and_another_text_for_additional_given',
-    #                            'when_I_write_when',
-    #                            'and_another_text_for_additional_when',
-    #                            'then_I_have_then',
-    #                            'and_another_then',
-    #                            ]
+    def test_that_non_alphanumeric_characters_change_into_underscore(self):
+        methodname = self.matcher.clause2methodname(self.clauses[4])
+        assert methodname == 'then_i_have_then_some_sp3c_al_characters_'
+
+    def test_converting_clause_sentence_to_method_name(self):
+        converted = [self.matcher.clause2methodname(c) for c in self.clauses]
+        assert converted == ['given_i_have_some_text_as_given',
+                             'given_another_text_for_additional_given',
+                             'when_i_write_when',
+                             'when_another_text_for_additional_when',
+                             'then_i_have_then_some_sp3c_al_characters_',
+                             'then_another_then'
+                            ]
         
 
 
