@@ -3,27 +3,51 @@
 
 import re, types
 
+FEATURE = 'Feature'
+SCENARIO = 'Scenario'
 GIVEN, WHEN, THEN = 'Given', 'When', 'Then'
 AND = 'And'
 CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
-ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
+#ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
+EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 
-class ClausePatterns:
+class Patterns:
     template = r'^\s*\b(%s)\b'
-    all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
-    clauses     = re.compile(template % '|'.join(CLAUSE_NAMES),     re.IGNORECASE)
-    and_c       = re.compile(template % AND, re.IGNORECASE)
+    feature  = re.compile(template % FEATURE,  re.IGNORECASE)
+    scenario = re.compile(template % SCENARIO, re.IGNORECASE)
+    #all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
+    every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
+    clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
+    and_clause = re.compile(template % AND, re.IGNORECASE)
 
-def given(regex_str):
-    pass
 
 def extract(text):
     extracts = [line.rstrip("\n") for line in text.split("\n")]
-    extracts = filter(lambda line: ClausePatterns.all_clauses.match(line), extracts)
+    #extracts = filter(lambda line: Patterns.all_clauses.match(line), extracts)
+    extracts = filter(lambda line: Patterns.every_keywords.match(line), extracts)
     return extracts
+
+    #extracted_d = {}
+    #last_feature, last_scenario = None, None
+    #for line in extracts:
+    #    if is_feature(line):
+    #        last_feature = line
+    #        extracted_d[last_feature] = {}
+    #    elif is_scenario(line):
+    #        last_scenario = line
+    #        extracted_d[last_feature][last_scenario] = []
+    #    else:
+    #        extracted_d[last_feature][last_scenario].append( line )
+
+    #return extracted_d
+
+def is_feature(line):  return Patterns.feature.match(line) != None
+def is_scenario(line): return Patterns.scenario.match(line) != None
+
 
 def extract_file(filename):
     return extract(open(filename).read())
+
 
 class Matcher:
     """ match each sentence with clauses """
@@ -41,7 +65,7 @@ class Matcher:
         if not clause_name:
             return None
     
-        clause = ClausePatterns.and_c.sub(clause_name, clause)
+        clause = Patterns.and_clause.sub(clause_name, clause)
         return re.sub(r'\W+', '_', clause).lower()
     
     def clause_name_of(self, sentence):
@@ -50,22 +74,22 @@ class Matcher:
                 And             => previous clause name
                 anything else   => None
         """
-        matched = ClausePatterns.clauses.match(sentence)
+        matched = Patterns.clauses.match(sentence)
         if matched: 
             # store as previous clause name when Given|When|Then
             self.previous_clause_name = matched.group()
-        elif not ClausePatterns.and_c.match(sentence):
+        elif not Patterns.and_clause.match(sentence):
             # None if it isn't And clause
             return None
         return self.previous_clause_name
 
 
-    def clause_methods_of(self, namespace):
+    def clause_methods_of(self, module):
         """ return list of clause methods """
-        methods = dir(namespace)
+        methods = dir(module)
 
         # filter functions
-        item_type = lambda x: type(vars(namespace)[x])
+        item_type = lambda x: type(vars(module)[x])
         methods = filter(lambda x: item_type(x) == types.FunctionType, methods)
 
         # filter by clause names
@@ -80,4 +104,19 @@ class Matcher:
                 return True
         else:
             return False
+
+    #def methods_to_implement(self, module, clauses):
+    #    """ given a module and a list of clauses,
+    #        find out which clauses is missing an implementation
+    #        and return list of methods for such clauses """
+
+    #    every_methods = filter(None, [self.clause2methodname(c) for c in clauses])
+    #    existing_methods = self.clause_methods_of(module)
+
+    #    not_implemented_methods = every_methods[:]
+    #    for existing_m in existing_methods:
+    #        if existing_m in every_methods:
+    #            not_implemented_methods.remove(existing_m)
+    #    return not_implemented_methods
+
 

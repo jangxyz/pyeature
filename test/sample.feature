@@ -1,4 +1,3 @@
-
 Given I have some text as given
 And   another text for additional given
 
