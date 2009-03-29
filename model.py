@@ -56,10 +56,10 @@ class Matcher:
 
     def clause2methodname(self, clause):
         """ convert a clause sentence into a method name
-                - ' Given some pre-condition' => 'given_some_pre_condition'
-                - 'And another given' => 'given_another_given' (checking previous)
-                - 'Then I have then	some sp3c!al,, characters?!'
-                    => 'then_i_have_then_some_sp3c_al_characters_'
+              - ' Given some pre-condition' => 'given_some_pre_condition'
+              - 'And another given' => 'given_another_given' (checking previous)
+              - 'Then I have then	some sp3c!al,, characters?!'
+                  => 'then_i_have_then_some_sp3c_al_characters_'
         """
         clause_name = self.clause_name_of(clause)
         if not clause_name:
@@ -109,15 +109,23 @@ class Matcher:
         else:
             return False
 
-def run_method(method, output):
+def run_method(method, clause, output):
     try:
         method()
     except:
+        output.write('(F) ')
+        output.write(clause)
+
         output.write("\n")
         output.write('-'*60)
         output.write("\n")
         traceback.print_exc(file=output)
         output.write('-'*60)
+        return False
+    else:
+        output.write('(.) ')
+        output.write(clause)
+    return True
 
 
 def find_and_call_method(name, methods):
@@ -132,8 +140,8 @@ def run_clauses(clauses, methods, output=sys.stdout):
         run each clause in order and
         write result in output.
         Exceptions will not be raised, but just written to output """
-    print 'running clauses:', clauses
-    print 'with methods:', methods
+    #print 'running clauses:', clauses
+    #print 'with methods:', methods
 
     # run before method
     find_and_call_method('before', methods)
@@ -141,10 +149,11 @@ def run_clauses(clauses, methods, output=sys.stdout):
     matcher = Matcher()
     for i,clause in enumerate(clauses):
         output.write("\n" if i is not 0 else "")
-        output.write(clause)
 
         # skip 
         if is_feature(clause) or is_scenario(clause):
+            output.write('(-) ')
+            output.write(clause)
             continue
 
         # find method
@@ -153,13 +162,18 @@ def run_clauses(clauses, methods, output=sys.stdout):
 
         # stop if no method found
         if len(clause_method) == 0:
+            output.write('(X) ')
+            output.write(clause)
             break
 
-        run_method(clause_method[0], output)
+        success = run_method(clause_method[0], clause, output)
+        if not success:
+            break
 
     i+=1
     output.write("\n" if i is not 0 else "")
     for rest_clause in clauses[i:]:
+        output.write('(-) ')
         output.write(rest_clause +"\n")
     output.write("\n")
 

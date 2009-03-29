@@ -21,7 +21,7 @@ def when_i_press_add():
 
 def then_the_result_should_be_120_on_the_screen():
     global result
-    assert result == 120
+    assert result == 1200
 
 def then_the_result_should_be_a_number():
     global result
