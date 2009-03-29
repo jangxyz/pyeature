@@ -1,21 +1,21 @@
 #!/usr/bin/python
 # coding: utf-8
 
-import re, types, sys, traceback
+import re, types, sys, traceback, os
 
 FEATURE = 'Feature'
 SCENARIO = 'Scenario'
 GIVEN, WHEN, THEN = 'Given', 'When', 'Then'
 AND = 'And'
 CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
-#ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
+ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
 EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 
 class Patterns:
     template = r'^\s*\b(%s)\b'
     feature  = re.compile(template % FEATURE,  re.IGNORECASE)
     scenario = re.compile(template % SCENARIO, re.IGNORECASE)
-    #all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
+    all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
     every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
     clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
     and_clause = re.compile(template % AND, re.IGNORECASE)
@@ -66,7 +66,7 @@ class Matcher:
             return None
     
         clause = Patterns.and_clause.sub(clause_name, clause)
-        return re.sub(r'\W+', '_', clause).lower()
+        return re.sub(r'\W+', '_', clause.lstrip()).lower()
     
     def clause_name_of(self, sentence):
         """  return clause name of sentence, if it is a clause
@@ -94,40 +94,59 @@ class Matcher:
         methods = filter(lambda x: type(item(x)) == types.FunctionType, methods)
 
         # filter by clause names
-        methods = filter(self.has_clause_prefix, methods)
+        methods = filter(self.is_clause_method_name, methods)
 
         return [item(m) for m in methods]
         
-    def has_clause_prefix(self, method_name):
-        """ returns true if method name starts with given_, when_, or then_ """
+    def is_clause_method_name(self, method_name):
+        """ returns true if method name starts with given_, when_, or then_,
+                      or if is before or after """
+        if method_name in ["before", "after"]:
+            return True 
         for c in CLAUSE_NAMES:
             if method_name.startswith( "%s_" % c.lower() ):
                 return True
         else:
             return False
 
-    # XXX: Not Yet!
-    #def methods_to_implement(self, module, clauses):
-    #    """ given a module and a list of clauses,
-    #        find out which clauses is missing an implementation
-    #        and return list of methods for such clauses """
+def run_method(method, output):
+    try:
+        method()
+    except:
+        output.write("\n")
+        output.write('-'*60)
+        output.write("\n")
+        traceback.print_exc(file=output)
+        output.write('-'*60)
 
-    #    every_methods = filter(None, [self.clause2methodname(c) for c in clauses])
-    #    existing_methods = self.clause_methods_of(module)
 
-    #    not_implemented_methods = every_methods[:]
-    #    for existing_m in existing_methods:
-    #        if existing_m in every_methods:
-    #            not_implemented_methods.remove(existing_m)
-    #    return not_implemented_methods
+def find_and_call_method(name, methods):
+    for m in methods:
+        if m.__name__ == name:
+            m()
+            return True
+    return False
 
 def run_clauses(clauses, methods, output=sys.stdout):
     """ with clauses and set of method candidates, 
         run each clause in order and
         write result in output.
         Exceptions will not be raised, but just written to output """
+    print 'running clauses:', clauses
+    print 'with methods:', methods
+
+    # run before method
+    find_and_call_method('before', methods)
+
     matcher = Matcher()
     for i,clause in enumerate(clauses):
+        output.write("\n" if i is not 0 else "")
+        output.write(clause)
+
+        # skip 
+        if is_feature(clause) or is_scenario(clause):
+            continue
+
         # find method
         method_name = matcher.clause2methodname(clause)
         clause_method = filter(lambda x: x.__name__ == method_name, methods)
@@ -136,20 +155,44 @@ def run_clauses(clauses, methods, output=sys.stdout):
         if len(clause_method) == 0:
             break
 
-        # run existing method
-        output.write("\n" if i is not 0 else "")
-        output.write(clause)
-        try:
-            clause_method[0]()
-        except:
-            output.write("\n")
-            output.write('-'*60)
-            output.write("\n")
-            traceback.print_exc(file=output)
-            output.write('-'*60)
+        run_method(clause_method[0], output)
 
+    i+=1
+    output.write("\n" if i is not 0 else "")
     for rest_clause in clauses[i:]:
-        output.write("\n" if i is not 0 else "")
-        output.write(rest_clause)
+        output.write(rest_clause +"\n")
+    output.write("\n")
 
+    # run after method
+    find_and_call_method('after', methods)
+
+def load_step(filename):
+    sys.path.append(os.path.dirname(filename))
+
+    filename_part = os.path.basename(filename).rsplit('.', 2)[0]
+    module = __import__(filename_part)
+
+    sys.path.pop()
+    return module
+
+def run(feature_file, step_file):
+    clauses = extract(open(feature_file).read())
+
+    module = load_step(step_file)
+    clause_methods = Matcher().clause_methods_of(module)
+
+    run_clauses(clauses, clause_methods)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        prog_name = sys.argv[0].rsplit(os.sep, 2)[-1]
+        sys.exit("""You must tell me the feature file and step definition file.
+
+    Usage: %s some.feature some_step.py
+        """ % prog_name)
+
+    # run
+    run(sys.argv[1], sys.argv[2])
+    
 

@@ -28,6 +28,16 @@ class ExtractingClausesTestCase(unittest.TestCase):
         extracts = model.extract(self.text)
         assert len(extracts) == 7
 
+    def test_extracts_every_keywords(self):
+        self.text = """Feature: some feature
+
+        Scenario: some scenario
+
+        %s """ % self.text
+        extracts = model.extract(self.text) 
+        assert len(extracts) == 8
+
+
 class ExtractingScenariosTestCase(unittest.TestCase):
     pass
 
@@ -81,7 +91,8 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
     def setUp(self):
         step_filename = 'sample_step.py'
         self.module = __import__(step_filename.rsplit('.', 2)[0])
-        self.clauses = ['Given  I have some text as given',
+        self.clauses = [
+                        'Given  I have some text as given',
                         'And   another text for additional given',
                         'When I write when',
                         'And  another text for additional when',
@@ -92,23 +103,24 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
 
     def test_finding_clause_methods_from_module(self):
         methods = self.matcher.clause_methods_of(self.module)
-        assert sorted([m.__name__ for m in methods]) == [
-                                   'given_i_have_some_text_as_given',
-                                   'when_another_text_for_additional_when', 
-                                  ]
+        clause_method_names = [m.__name__ for m in methods]
 
-    #def test_finding_clauses_with_no_methods(self):
-    #    methods = self.matcher.methods_to_implement(self.module, self.clauses)
-    #    assert sorted(methods) == [
-    #                               'given_another_text_for_additional_given',
-    #                               'then_another_then', 
-    #                               'then_i_have_then_some_sp3c_al_characters_',
-    #                               'when_i_write_when',
-    #                              ]
+        for method_name in [
+         'given_i_have_some_text_as_given',
+         'when_another_text_for_additional_when', 
+        ]:
+            assert method_name in clause_method_names
 
+    def test_before_and_after_methods(self):
+        methods = self.matcher.clause_methods_of(self.module)
+        clause_method_names = [m.__name__ for m in methods]
+
+        assert "before" in clause_method_names
+        assert "after" in clause_method_names
 
 class RunFeatureTestCase(unittest.TestCase):
     def setUp(self):
+        self.sample_filename = 'sample.feature'
         self.clauses = [
                         'Given  I have some text as given',
                         'And   another text for additional given',
@@ -118,8 +130,8 @@ class RunFeatureTestCase(unittest.TestCase):
                         'And  another then',
                        ]
 
-        step_filename = 'sample_step.py'
-        module = __import__(step_filename.rsplit('.', 2)[0])
+        self.step_filename = 'sample_step.py'
+        module = __import__(self.step_filename.rsplit('.', 2)[0])
         self.clause_methods = model.Matcher().clause_methods_of(module)
         
         from StringIO import StringIO
@@ -159,6 +171,19 @@ class RunFeatureTestCase(unittest.TestCase):
         model.run_clauses(self.clauses, self.clause_methods, self.output)
 
         assert "Traceback (most recent call last):" not in self.output.getvalue()
+
+    def test_that_running_before_methods_should_raise_exception_when_wrong(self):
+        clause_methods = []
+        self.append_clause_method(lambda: y, 'before', clause_methods)
+        self.assertRaises(NameError, model.run_clauses, self.clauses, clause_methods, self.output)
+
+    def test_running_after_methods_should_raise_exception_when_wrong(self):
+        clause_methods = []
+        self.append_clause_method(lambda: y, 'after', clause_methods)
+        self.assertRaises(NameError, model.run_clauses, self.clauses, clause_methods, self.output)
+
+    def test_run(self):
+        model.run(self.sample_filename, self.step_filename)
 
 
 if __name__ == '__main__':

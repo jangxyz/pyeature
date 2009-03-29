@@ -1,3 +1,8 @@
+def before():
+    pass
+
+def after():
+    pass
 
 def given_i_have_some_text_as_given():
     pass
