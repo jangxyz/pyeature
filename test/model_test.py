@@ -2,8 +2,9 @@
 # coding: utf-8
 
 import sys, os
-HOMEDIR=os.path.abspath(os.path.join(os.path.dirname(__file__),os.path.pardir))
-sys.path.append(HOMEDIR)
+HOMEDIR = os.path.abspath(os.path.join(os.path.dirname(__file__),os.path.pardir))
+FILEDIR = os.path.dirname(__file__)
+sys.path += [HOMEDIR, FILEDIR]
 
 import unittest
 import model
@@ -11,7 +12,7 @@ import model
 
 class ExtractingClausesTestCase(unittest.TestCase):
     def setUp(self):
-        self.filename = 'sample.feature'
+        self.filename = os.path.join(FILEDIR, 'sample.feature')
         self.text = open(self.filename).read()
 
     def test_extracting_clauses_from_string(self):
@@ -120,7 +121,7 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
 
 class RunFeatureTestCase(unittest.TestCase):
     def setUp(self):
-        self.sample_filename = 'sample.feature'
+        self.sample_filename = os.path.join(FILEDIR, 'sample.feature')
         self.clauses = [
                         'Given  I have some text as given',
                         'And   another text for additional given',
@@ -157,13 +158,13 @@ class RunFeatureTestCase(unittest.TestCase):
 
         assert "Traceback (most recent call last):" in self.output.getvalue()
 
-    def test_multiple_clauses_with_exceptions(self):
+    def test_that_multiple__exceptions_skip_rest_at_first_occurence(self):
         self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
         self.append_clause_method(lambda: y, 'when_i_write_when', self.clause_methods)
         
         model.run_clauses(self.clauses, self.clause_methods, self.output)
 
-        assert self.output.getvalue().count('Traceback (most recent call last):') == 2
+        assert self.output.getvalue().count('Traceback (most recent call last):') == 1
 
     def test_non_successive_clause_method_should_not_run(self):
         self.append_clause_method(lambda: y, 'then_another_then', self.clause_methods)
@@ -183,7 +184,7 @@ class RunFeatureTestCase(unittest.TestCase):
         self.assertRaises(NameError, model.run_clauses, self.clauses, clause_methods, self.output)
 
     def test_run(self):
-        model.run(self.sample_filename, self.step_filename)
+        model.run(self.sample_filename, self.step_filename, self.output)
 
 
 if __name__ == '__main__':
@@ -194,5 +195,4 @@ if __name__ == '__main__':
         loader = unittest.defaultTestLoader
         loader.testMethodPrefix = 'test'
         unittest.main(testLoader = loader)
-
 

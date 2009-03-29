@@ -189,13 +189,14 @@ def load_step(filename):
     sys.path.pop()
     return module
 
-def run(feature_file, step_file):
+def run(feature_file, step_file, output=sys.stdout):
+    # load clauses from feature and methods from step definition
     clauses = extract(open(feature_file).read())
-
     module = load_step(step_file)
     clause_methods = Matcher().clause_methods_of(module)
 
-    run_clauses(clauses, clause_methods)
+    # run clauses
+    run_clauses(clauses, clause_methods, output)
 
 
 if __name__ == '__main__':
