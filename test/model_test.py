@@ -80,8 +80,7 @@ class ConvertingStringIntoMethodNameTestCase(unittest.TestCase):
 class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
     def setUp(self):
         step_filename = 'sample_step.py'
-        import os
-        self.module = __import__(step_filename.rsplit(os.extsep, 2)[0])
+        self.module = __import__(step_filename.rsplit('.', 2)[0])
         self.clauses = ['Given  I have some text as given',
                         'And   another text for additional given',
                         'When I write when',
@@ -93,7 +92,7 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
 
     def test_finding_clause_methods_from_module(self):
         methods = self.matcher.clause_methods_of(self.module)
-        assert sorted(methods) == [
+        assert sorted([m.__name__ for m in methods]) == [
                                    'given_i_have_some_text_as_given',
                                    'when_another_text_for_additional_when', 
                                   ]
@@ -107,8 +106,28 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
     #                               'when_i_write_when',
     #                              ]
 
-    def test_running_clause_methods(self):
-        self.matcher.run_clause_methods(self.module, self.clauses)
+
+class RunFeatureTestCase(unittest.TestCase):
+    def setUp(self):
+        self.clauses = [
+                        'Given  I have some text as given',
+                        'And   another text for additional given',
+                        'When I write when',
+                        'And  another text for additional when',
+                        'Then I have then some result',
+                        'And  another then',
+                       ]
+        step_filename = 'sample_step.py'
+        module = __import__(step_filename.rsplit('.', 2)[0])
+        self.clause_methods = model.Matcher().clause_methods_of(module)
+
+    def test_running_clauses(self):
+        from StringIO import StringIO
+        output = StringIO()
+        model.run_clauses(self.clauses, self.clause_methods, output)
+
+        assert output.getvalue()[:-1] == "\n".join(self.clauses)
+        output.close()
 
 
 

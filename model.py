@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
 
-import re, types
+import re, types, sys
 
 FEATURE = 'Feature'
 SCENARIO = 'Scenario'
@@ -89,13 +89,14 @@ class Matcher:
         methods = dir(module)
 
         # filter functions
-        item_type = lambda x: type(vars(module)[x])
-        methods = filter(lambda x: item_type(x) == types.FunctionType, methods)
+        item = lambda x: vars(module)[x]
+        #item_type = lambda x: type(vars(module)[x])
+        methods = filter(lambda x: type(item(x)) == types.FunctionType, methods)
 
         # filter by clause names
         methods = filter(self.has_clause_prefix, methods)
 
-        return methods
+        return [item(m) for m in methods]
         
     def has_clause_prefix(self, method_name):
         """ returns true if method name starts with given_, when_, or then_ """
@@ -105,6 +106,7 @@ class Matcher:
         else:
             return False
 
+    # XXX: Not Yet!
     #def methods_to_implement(self, module, clauses):
     #    """ given a module and a list of clauses,
     #        find out which clauses is missing an implementation
@@ -119,4 +121,19 @@ class Matcher:
     #            not_implemented_methods.remove(existing_m)
     #    return not_implemented_methods
 
+def run_clauses(clauses, methods, output=sys.stdout):
+    matcher = Matcher()
+    for i,clause in enumerate(clauses):
+        # find method
+        method_name = matcher.clause2methodname(clause)
+        clause_method = filter(lambda x: x.__name__ == method_name, methods)
+
+        if len(clause_method) == 0:
+            break
+        else:
+            output.write(clause+"\n")
+            clause_method[0]()
+
+    for rest_clause in clauses[i:]:
+        output.write(rest_clause+"\n")
 
