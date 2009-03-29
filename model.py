@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
 
-import re, types, sys
+import re, types, sys, traceback
 
 FEATURE = 'Feature'
 SCENARIO = 'Scenario'
@@ -122,18 +122,34 @@ class Matcher:
     #    return not_implemented_methods
 
 def run_clauses(clauses, methods, output=sys.stdout):
+    """ with clauses and set of method candidates, 
+        run each clause in order and
+        write result in output.
+        Exceptions will not be raised, but just written to output """
     matcher = Matcher()
     for i,clause in enumerate(clauses):
         # find method
         method_name = matcher.clause2methodname(clause)
         clause_method = filter(lambda x: x.__name__ == method_name, methods)
 
+        # stop if no method found
         if len(clause_method) == 0:
             break
-        else:
-            output.write(clause+"\n")
+
+        # run existing method
+        output.write("\n" if i is not 0 else "")
+        output.write(clause)
+        try:
             clause_method[0]()
+        except:
+            output.write("\n")
+            output.write('-'*60)
+            output.write("\n")
+            traceback.print_exc(file=output)
+            output.write('-'*60)
 
     for rest_clause in clauses[i:]:
-        output.write(rest_clause+"\n")
+        output.write("\n" if i is not 0 else "")
+        output.write(rest_clause)
+
 

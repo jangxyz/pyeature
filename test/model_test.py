@@ -117,18 +117,48 @@ class RunFeatureTestCase(unittest.TestCase):
                         'Then I have then some result',
                         'And  another then',
                        ]
+
         step_filename = 'sample_step.py'
         module = __import__(step_filename.rsplit('.', 2)[0])
         self.clause_methods = model.Matcher().clause_methods_of(module)
+        
+        from StringIO import StringIO
+        self.output = StringIO()
+
+    def tearDown(self):
+        self.output.close()
 
     def test_running_clauses(self):
-        from StringIO import StringIO
-        output = StringIO()
-        model.run_clauses(self.clauses, self.clause_methods, output)
+        model.run_clauses(self.clauses, self.clause_methods, self.output)
 
-        assert output.getvalue()[:-1] == "\n".join(self.clauses)
-        output.close()
+        for clause in self.clauses:
+            assert clause in self.output.getvalue()
 
+    def append_clause_method(self, method, name, clause_methods):
+        method.func_name = name
+        clause_methods.append( method )
+
+    def test_running_clauses_making_exception_does_not_raise_exception(self):
+        self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
+
+        model.run_clauses(self.clauses, self.clause_methods, self.output)
+
+        assert "Traceback (most recent call last):" in self.output.getvalue()
+
+    def test_multiple_clauses_with_exceptions(self):
+        self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
+        self.append_clause_method(lambda: y, 'when_i_write_when', self.clause_methods)
+        
+        model.run_clauses(self.clauses, self.clause_methods, self.output)
+
+        assert self.output.getvalue().count('Traceback (most recent call last):') == 2
+
+    def test_non_successive_clause_method_should_not_run(self):
+        self.append_clause_method(lambda: y, 'then_another_then', self.clause_methods)
+
+        model.run_clauses(self.clauses, self.clause_methods, self.output)
+
+        assert "Traceback (most recent call last):" not in self.output.getvalue()
 
 
 if __name__ == '__main__':
