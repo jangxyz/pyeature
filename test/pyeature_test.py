@@ -7,7 +7,7 @@ FILEDIR = os.path.dirname(__file__)
 sys.path += [HOMEDIR, FILEDIR]
 
 import unittest
-import model
+import pyeature
 
 
 class ExtractingClausesTestCase(unittest.TestCase):
@@ -16,17 +16,17 @@ class ExtractingClausesTestCase(unittest.TestCase):
         self.text = open(self.filename).read()
 
     def test_extracting_clauses_from_string(self):
-        extracts = model.extract(self.text)
+        extracts = pyeature.extract(self.text)
         assert len(extracts) == 6
     def test_extracting_clauses_from_a_feature_file(self):
-        extracts = model.extract_file(self.filename) 
+        extracts = pyeature.extract_file(self.filename) 
         assert len(extracts) == 6
 
     def test_extracting_clauses_that_starts_with_given_when_and_then(self):
         self.text += """Some other words
             And another word
         Tada"""
-        extracts = model.extract(self.text)
+        extracts = pyeature.extract(self.text)
         assert len(extracts) == 7
 
     def test_extracts_every_keywords(self):
@@ -35,7 +35,7 @@ class ExtractingClausesTestCase(unittest.TestCase):
         Scenario: some scenario
 
         %s """ % self.text
-        extracts = model.extract(self.text) 
+        extracts = pyeature.extract(self.text) 
         assert len(extracts) == 8
 
 
@@ -52,7 +52,7 @@ class ConvertingStringIntoMethodNameTestCase(unittest.TestCase):
                         'Then I have then	some sp3c!al,, characters?!',
                         'And  another then',
                         ]
-        self.matcher = model.Matcher()
+        self.matcher = pyeature.Matcher()
 
     def test_that_continuous_spaces_are_turned_into_an_underscores(self):
         methodname = self.matcher.clause2methodname(self.clauses[0])
@@ -100,7 +100,7 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
                         'Then I have then	some sp3c!al,, characters?!',
                         'And  another then',
                         ]
-        self.matcher = model.Matcher()
+        self.matcher = pyeature.Matcher()
 
     def test_finding_clause_methods_from_module(self):
         methods = self.matcher.clause_methods_of(self.module)
@@ -133,7 +133,7 @@ class RunFeatureTestCase(unittest.TestCase):
 
         self.step_filename = 'sample_step.py'
         module = __import__(self.step_filename.rsplit('.', 2)[0])
-        self.clause_methods = model.Matcher().clause_methods_of(module)
+        self.clause_methods = pyeature.Matcher().clause_methods_of(module)
         
         from StringIO import StringIO
         self.output = StringIO()
@@ -142,7 +142,7 @@ class RunFeatureTestCase(unittest.TestCase):
         self.output.close()
 
     def test_running_clauses(self):
-        model.run_clauses(self.clauses, self.clause_methods, self.output)
+        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
 
         for clause in self.clauses:
             assert clause in self.output.getvalue()
@@ -154,7 +154,7 @@ class RunFeatureTestCase(unittest.TestCase):
     def test_running_clauses_making_exception_does_not_raise_exception(self):
         self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
 
-        model.run_clauses(self.clauses, self.clause_methods, self.output)
+        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
 
         assert "Traceback (most recent call last):" in self.output.getvalue()
 
@@ -162,29 +162,29 @@ class RunFeatureTestCase(unittest.TestCase):
         self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
         self.append_clause_method(lambda: y, 'when_i_write_when', self.clause_methods)
         
-        model.run_clauses(self.clauses, self.clause_methods, self.output)
+        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
 
         assert self.output.getvalue().count('Traceback (most recent call last):') == 1
 
     def test_non_successive_clause_method_should_not_run(self):
         self.append_clause_method(lambda: y, 'then_another_then', self.clause_methods)
 
-        model.run_clauses(self.clauses, self.clause_methods, self.output)
+        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
 
         assert "Traceback (most recent call last):" not in self.output.getvalue()
 
     def test_that_running_before_methods_should_raise_exception_when_wrong(self):
         clause_methods = []
         self.append_clause_method(lambda: y, 'before', clause_methods)
-        self.assertRaises(NameError, model.run_clauses, self.clauses, clause_methods, self.output)
+        self.assertRaises(NameError, pyeature.run_clauses, self.clauses, clause_methods, self.output)
 
     def test_running_after_methods_should_raise_exception_when_wrong(self):
         clause_methods = []
         self.append_clause_method(lambda: y, 'after', clause_methods)
-        self.assertRaises(NameError, model.run_clauses, self.clauses, clause_methods, self.output)
+        self.assertRaises(NameError, pyeature.run_clauses, self.clauses, clause_methods, self.output)
 
     def test_run(self):
-        model.run(self.sample_filename, self.step_filename, self.output)
+        pyeature.run(self.sample_filename, self.step_filename, self.output)
 
 
 if __name__ == '__main__':

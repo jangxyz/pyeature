@@ -20,7 +20,7 @@ When /I press (\w+)/ do |op|
 end
 
 Then /the result should be (.*) on the screen/ do |result|
-  @result.should == result.to_f*10
+  @result.should == result.to_f
 end
 
 Then /the result should be a number/ do
