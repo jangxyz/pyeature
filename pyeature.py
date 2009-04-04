@@ -77,19 +77,25 @@ class Matcher:
         return self.previous_clause_name
 
 
-    def clause_methods_of(self, module):
-        """ return list of clause methods """
-        methods = dir(module)
+    def clause_methods_of(self, modules):
+        """ return list of clause methods from given modules """
+        modules = [modules] if not isinstance(modules, types.ListType) else modules
 
-        # filter functions
-        item = lambda x: vars(module)[x]
-        #item_type = lambda x: type(vars(module)[x])
-        methods = filter(lambda x: type(item(x)) == types.FunctionType, methods)
+        methods = []
+        for module in modules:
+            name2item   = lambda x: vars(module)[x]
+            new_methods = [name2item(x) for x in dir(module)]
+            # filter functions from module
+            new_methods = filter(lambda x: type(x) == types.FunctionType, new_methods)
+            methods.extend(new_methods)
 
         # filter by clause names
-        methods = filter(self.is_clause_method_name, methods)
+        #methods = filter(self.is_clause_method_name, methods)
+        methods = filter(lambda x: self.is_clause_method_name(x.__name__), methods)
+        #methods = filter(self.is_clause_method_name, [m.__name__ for m in methods])
 
-        return [item(m) for m in methods]
+        #return [item(m) for m in methods]
+        return methods
         
     def is_clause_method_name(self, method_name):
         """ returns true if method name starts with given_, when_, or then_,
@@ -122,6 +128,7 @@ class Runner:
         # run before method
         self.find_and_call_method('before', methods)
     
+        success_count = 0
         matcher = Matcher()
         for i,clause in enumerate(clauses):
             output.write("\n" if i is not 0 else "")
@@ -144,6 +151,7 @@ class Runner:
             success = self.run_method(clause_method[0], clause, output)
             if not success:
                 break
+            success_count += 1
     
         # skip remaining methods after stop or fail
         output.write("\n" if i is not 0 else "")
@@ -153,6 +161,8 @@ class Runner:
     
         # run after method
         self.find_and_call_method('after', methods)
+
+        return success_count
 
 
     def report(self, content, status, output):
@@ -197,25 +207,44 @@ class Runner:
 
 
 def load_step(filename):
-    """ load methods from step definition file """
-    sys.path.append(os.path.dirname(filename))
+    """ load methods from step definition file 
+    also supports directory name """
+    full_filename = os.path.abspath(filename)
+    sys.path.append(os.path.dirname(full_filename))
 
-    filename_part = os.path.basename(filename).rsplit('.', 2)[0]
-    module = __import__(filename_part)
+    filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
+    if os.path.isdir(full_filename):
+        filename_parts = map(filename_part, os.listdir(full_filename))
+    else:
+        filename_parts = [filename_part(full_filename)]
+
+    modules = []
+    try:
+        for filename_part in filename_parts:
+            modules.append( __import__(filename_part) )
+    except SyntaxError:
+        pass
+    except ImportError:
+        pass
+    except ValueError:
+        pass
 
     sys.path.pop()
-    return module
+    return modules
 
 
 def run(feature_file, step_file, output=sys.stdout):
-    """ default method for pyeature: run given feature file with given step file """
+    """ default method for pyeature: run given feature file with given step file(or directory)
+    
+    returns number of successful steps ran
+    """
     # load clauses from feature and methods from step definition
     clauses = extract(open(feature_file).read())
-    module = load_step(step_file)
-    clause_methods = Matcher().clause_methods_of(module)
+    modules = load_step(step_file)
+    clause_methods = Matcher().clause_methods_of(modules)
 
     # run clauses
-    Runner().run_clauses(clauses, clause_methods, output)
+    return Runner().run_clauses(clauses, clause_methods, output)
 
 
 if __name__ == '__main__':
@@ -229,4 +258,3 @@ if __name__ == '__main__':
     # run
     run(sys.argv[1], sys.argv[2])
     
-

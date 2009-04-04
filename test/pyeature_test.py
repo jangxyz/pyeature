@@ -112,6 +112,17 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
         ]:
             assert method_name in clause_method_names
 
+    def test_finding_clause_methods_from_list_of_modules(self):
+        methods_from_a_module = self.matcher.clause_methods_of(self.module)
+
+        modules = [self.module, __import__('another_sample_step')]
+        methods_from_modules = self.matcher.clause_methods_of(modules)
+
+        assert len(methods_from_a_module) < len(methods_from_modules)
+        for m in methods_from_a_module:
+            assert m in methods_from_modules
+
+
     def test_before_and_after_methods(self):
         methods = self.matcher.clause_methods_of(self.module)
         clause_method_names = [m.__name__ for m in methods]
@@ -131,8 +142,9 @@ class RunFeatureTestCase(unittest.TestCase):
                         'And  another then',
                        ]
 
-        self.step_filename = 'sample_step.py'
-        module = __import__(self.step_filename.rsplit('.', 2)[0])
+        self.step_filename = os.path.join(FILEDIR, 'sample_step.py')
+        filename_part = os.path.basename(self.step_filename).rsplit('.', 1)[0]
+        module = __import__(filename_part)
         self.clause_methods = pyeature.Matcher().clause_methods_of(module)
         
         self.runner = pyeature.Runner()
@@ -185,8 +197,19 @@ class RunFeatureTestCase(unittest.TestCase):
         self.append_clause_method(lambda: y, 'after', clause_methods)
         self.assertRaises(NameError, self.runner.run_clauses, self.clauses, clause_methods, self.output)
 
-    def test_run(self):
+
+    def test_run_with_a_step_definition_file(self):
         pyeature.run(self.sample_filename, self.step_filename, self.output)
+
+    def test_run_returns_successful_steps(self):
+        num = pyeature.run(self.sample_filename, self.step_filename, self.output)
+        assert isinstance(num, int)
+
+    def test_run_with_step_definition_directory(self):
+        file_run  = pyeature.run(self.sample_filename, self.step_filename, self.output)
+        directory = os.path.dirname(os.path.abspath(self.step_filename))
+        directory_run = pyeature.run(self.sample_filename, directory, self.output)
+        assert file_run == directory_run
 
 
 if __name__ == '__main__':
