@@ -264,7 +264,16 @@ def run(feature_file, step_file, output=sys.stdout):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
+    try:
+        feature_file = sys.argv[1]
+        if len(sys.argv) >= 3:
+            step_definition_directory = sys.argv[2]
+        else:
+            dirname = os.path.dirname(os.path.abspath(feature_file))
+            step_definition_directory = os.path.join( dirname, 'step_definitions' )
+            if not os.path.isdir(step_definition_directory):
+                raise Exception
+    except:
         prog_name = sys.argv[0].rsplit(os.sep, 1)[-1]
         sys.exit("""You must tell me the feature file and step definition file.
 
@@ -272,6 +281,6 @@ if __name__ == '__main__':
         """ % prog_name)
 
     # run
-    run(sys.argv[1], sys.argv[2])
+    run(sys.argv[1], step_definition_directory)
 
 
