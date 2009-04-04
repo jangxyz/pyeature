@@ -3,15 +3,24 @@
 
 import re, types, sys, traceback, os
 
-FEATURE = 'Feature'
+##
+## Keyword definitions
+##
+FEATURE  = 'Feature'
 SCENARIO = 'Scenario'
+
+# These are called clauses. 'And' is an additional clause that continues the previous clause
 GIVEN, WHEN, THEN = 'Given', 'When', 'Then'
 AND = 'And'
+
 CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
 ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
 EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
+##
+##
 
 class Patterns:
+    """ patterns used to parse sentence of feature file """
     template = r'^\s*\b(%s)\b'
     feature  = re.compile(template % FEATURE,  re.IGNORECASE)
     scenario = re.compile(template % SCENARIO, re.IGNORECASE)
@@ -22,30 +31,14 @@ class Patterns:
 
 
 def extract(text):
+    """ extracts a list of clauses from given text """
     extracts = [line.rstrip("\n") for line in text.split("\n")]
     #extracts = filter(lambda line: Patterns.all_clauses.match(line), extracts)
     extracts = filter(lambda line: Patterns.every_keywords.match(line), extracts)
     return extracts
 
-    #extracted_d = {}
-    #last_feature, last_scenario = None, None
-    #for line in extracts:
-    #    if is_feature(line):
-    #        last_feature = line
-    #        extracted_d[last_feature] = {}
-    #    elif is_scenario(line):
-    #        last_scenario = line
-    #        extracted_d[last_feature][last_scenario] = []
-    #    else:
-    #        extracted_d[last_feature][last_scenario].append( line )
-
-    #return extracted_d
-
-def is_feature(line):  return Patterns.feature.match(line) != None
-def is_scenario(line): return Patterns.scenario.match(line) != None
-
-
 def extract_file(filename):
+    """ same as extract(), but opens a given filename """
     return extract(open(filename).read())
 
 
@@ -109,78 +102,102 @@ class Matcher:
         else:
             return False
 
-def run_method(method, clause, output):
-    try:
-        method()
-    except:
-        output.write('(F) ')
-        output.write(clause)
 
-        output.write("\n")
-        output.write('-'*60)
-        output.write("\n")
-        traceback.print_exc(file=output)
-        output.write('-'*60)
-        return False
-    else:
-        output.write('(.) ')
-        output.write(clause)
-    return True
+class Runner:
+    @staticmethod
+    def is_feature(line):  return Patterns.feature.match(line) != None
+
+    @staticmethod
+    def is_scenario(line): return Patterns.scenario.match(line) != None
 
 
-def find_and_call_method(name, methods):
-    for m in methods:
-        if m.__name__ == name:
-            m()
-            return True
-    return False
-
-def run_clauses(clauses, methods, output=sys.stdout):
-    """ with clauses and set of method candidates, 
-        run each clause in order and
-        write result in output.
-        Exceptions will not be raised, but just written to output """
-    #print 'running clauses:', clauses
-    #print 'with methods:', methods
-
-    # run before method
-    find_and_call_method('before', methods)
-
-    matcher = Matcher()
-    for i,clause in enumerate(clauses):
+    def run_clauses(self, clauses, methods, output=sys.stdout):
+        """ with clauses and set of method candidates, 
+            run each clause in order and
+            write result in output.
+            Exceptions will not be raised, but just written to output """
+        #print 'running clauses:', clauses
+        #print 'with methods:', methods
+    
+        # run before method
+        self.find_and_call_method('before', methods)
+    
+        matcher = Matcher()
+        for i,clause in enumerate(clauses):
+            output.write("\n" if i is not 0 else "")
+    
+            # skip 
+            if Runner.is_feature(clause) or Runner.is_scenario(clause):
+                self.report(clause, "skip", output)
+                continue
+    
+            # find method
+            method_name = matcher.clause2methodname(clause)
+            clause_method = filter(lambda x: x.__name__ == method_name, methods)
+    
+            # stop if no method found
+            if len(clause_method) == 0:
+                self.report(clause, "stop", output)
+                break
+    
+            # run method
+            success = self.run_method(clause_method[0], clause, output)
+            if not success:
+                break
+    
+        # skip remaining methods after stop or fail
         output.write("\n" if i is not 0 else "")
+        for rest_clause in clauses[i+1:]:
+            self.report(rest_clause+"\n", "skip", output)
+        output.write("\n")
+    
+        # run after method
+        self.find_and_call_method('after', methods)
 
-        # skip 
-        if is_feature(clause) or is_scenario(clause):
-            output.write('(-) ')
-            output.write(clause)
-            continue
 
-        # find method
-        method_name = matcher.clause2methodname(clause)
-        clause_method = filter(lambda x: x.__name__ == method_name, methods)
+    def report(self, content, status, output):
+        # skip stop fail sucess
+        status_key = {
+            "skip": '-',
+            "stop": "X",
+            "fail": "F",
+            "success": ".",
+        }
+        try:
+            output.write("("+ status_key[status] +") ")
+        except KeyError:
+            pass
 
-        # stop if no method found
-        if len(clause_method) == 0:
-            output.write('(X) ')
-            output.write(clause)
-            break
+        output.write(content)
+        if status == "fail":
+            output.write("\n")
+            output.write('-'*60 + "\n")
+            traceback.print_exc(file=output)
+            output.write('-'*60)
 
-        success = run_method(clause_method[0], clause, output)
-        if not success:
-            break
 
-    i+=1
-    output.write("\n" if i is not 0 else "")
-    for rest_clause in clauses[i:]:
-        output.write('(-) ')
-        output.write(rest_clause +"\n")
-    output.write("\n")
+    def run_method(self, method, clause, output):
+        """ run a clause with method given, and report result to output """
+        try:
+            method()
+        except:
+            self.report(clause, "fail", output)
+            return False
+        else:
+            self.report(clause, "success", output)
+            return True
 
-    # run after method
-    find_and_call_method('after', methods)
+
+    def find_and_call_method(self, name, methods):
+        for m in methods:
+            if m.__name__ == name:
+                m()
+                return True
+        return False
+
 
 def load_step(filename):
+    """ load methods from step definition file """
     sys.path.append(os.path.dirname(filename))
 
     filename_part = os.path.basename(filename).rsplit('.', 2)[0]
@@ -189,14 +206,16 @@ def load_step(filename):
     sys.path.pop()
     return module
 
+
 def run(feature_file, step_file, output=sys.stdout):
+    """ default method for pyeature: run given feature file with given step file """
     # load clauses from feature and methods from step definition
     clauses = extract(open(feature_file).read())
     module = load_step(step_file)
     clause_methods = Matcher().clause_methods_of(module)
 
     # run clauses
-    run_clauses(clauses, clause_methods, output)
+    Runner().run_clauses(clauses, clause_methods, output)
 
 
 if __name__ == '__main__':

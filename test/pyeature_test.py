@@ -135,6 +135,8 @@ class RunFeatureTestCase(unittest.TestCase):
         module = __import__(self.step_filename.rsplit('.', 2)[0])
         self.clause_methods = pyeature.Matcher().clause_methods_of(module)
         
+        self.runner = pyeature.Runner()
+
         from StringIO import StringIO
         self.output = StringIO()
 
@@ -142,7 +144,7 @@ class RunFeatureTestCase(unittest.TestCase):
         self.output.close()
 
     def test_running_clauses(self):
-        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
+        self.runner.run_clauses(self.clauses, self.clause_methods, self.output)
 
         for clause in self.clauses:
             assert clause in self.output.getvalue()
@@ -154,7 +156,7 @@ class RunFeatureTestCase(unittest.TestCase):
     def test_running_clauses_making_exception_does_not_raise_exception(self):
         self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
 
-        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
+        self.runner.run_clauses(self.clauses, self.clause_methods, self.output)
 
         assert "Traceback (most recent call last):" in self.output.getvalue()
 
@@ -162,26 +164,26 @@ class RunFeatureTestCase(unittest.TestCase):
         self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
         self.append_clause_method(lambda: y, 'when_i_write_when', self.clause_methods)
         
-        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
+        self.runner.run_clauses(self.clauses, self.clause_methods, self.output)
 
         assert self.output.getvalue().count('Traceback (most recent call last):') == 1
 
     def test_non_successive_clause_method_should_not_run(self):
         self.append_clause_method(lambda: y, 'then_another_then', self.clause_methods)
 
-        pyeature.run_clauses(self.clauses, self.clause_methods, self.output)
+        self.runner.run_clauses(self.clauses, self.clause_methods, self.output)
 
         assert "Traceback (most recent call last):" not in self.output.getvalue()
 
     def test_that_running_before_methods_should_raise_exception_when_wrong(self):
         clause_methods = []
         self.append_clause_method(lambda: y, 'before', clause_methods)
-        self.assertRaises(NameError, pyeature.run_clauses, self.clauses, clause_methods, self.output)
+        self.assertRaises(NameError, self.runner.run_clauses, self.clauses, clause_methods, self.output)
 
     def test_running_after_methods_should_raise_exception_when_wrong(self):
         clause_methods = []
         self.append_clause_method(lambda: y, 'after', clause_methods)
-        self.assertRaises(NameError, pyeature.run_clauses, self.clauses, clause_methods, self.output)
+        self.assertRaises(NameError, self.runner.run_clauses, self.clauses, clause_methods, self.output)
 
     def test_run(self):
         pyeature.run(self.sample_filename, self.step_filename, self.output)
