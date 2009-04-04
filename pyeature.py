@@ -210,7 +210,8 @@ def load_step(filename):
     """ load methods from step definition file 
     also supports directory name """
     full_filename = os.path.abspath(filename)
-    sys.path.append(os.path.dirname(full_filename))
+    directory = full_filename if os.path.isdir(full_filename) else os.path.dirname(full_filename)
+    sys.path.append(directory)
 
     filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
     if os.path.isdir(full_filename):
@@ -219,15 +220,15 @@ def load_step(filename):
         filename_parts = [filename_part(full_filename)]
 
     modules = []
-    try:
-        for filename_part in filename_parts:
+    for filename_part in filename_parts:
+        try:
             modules.append( __import__(filename_part) )
-    except SyntaxError:
-        pass
-    except ImportError:
-        pass
-    except ValueError:
-        pass
+        except SyntaxError, e:
+            pass
+        except ImportError, e:
+            pass
+        except ValueError, e:
+            pass
 
     sys.path.pop()
     return modules
