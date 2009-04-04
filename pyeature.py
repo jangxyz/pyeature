@@ -19,6 +19,11 @@ EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 ##
 ##
 
+class World: 
+    pass
+global_world = World()
+
+
 class Patterns:
     """ patterns used to parse sentence of feature file """
     template = r'^\s*\b(%s)\b'
@@ -28,6 +33,45 @@ class Patterns:
     every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
     clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
     and_clause = re.compile(template % AND, re.IGNORECASE)
+
+
+class Loader:
+    """ loads methods from step definitions """
+    @staticmethod
+    def load_step(filename):
+        """ load methods from step definition file 
+        also supports directory name """
+        # add directory to sys path
+        full_filename = os.path.abspath(filename)
+        directory = full_filename if os.path.isdir(full_filename) else os.path.dirname(full_filename)
+        sys.path.append(directory)
+    
+        # find module names, either from filename or directory
+        filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
+        if os.path.isdir(full_filename):
+            filename_parts = map(filename_part, os.listdir(full_filename))
+        else:
+            filename_parts = [filename_part(full_filename)]
+    
+        # import every possible modules you can
+        modules = []
+        for filename_part in filename_parts:
+            try:
+                new_module = __import__(filename_part)
+                new_module.self = global_world
+                modules.append( new_module )
+            except SyntaxError, e:
+                pass
+            except ImportError, e:
+                pass
+            except ValueError, e:
+                pass
+    
+        # remove last added sys path directory
+        sys.path.pop()
+    
+        return modules
+
 
 
 def extract(text):
@@ -81,6 +125,7 @@ class Matcher:
         """ return list of clause methods from given modules """
         modules = [modules] if not isinstance(modules, types.ListType) else modules
 
+        # search each modules for functions
         methods = []
         for module in modules:
             name2item   = lambda x: vars(module)[x]
@@ -122,9 +167,6 @@ class Runner:
             run each clause in order and
             write result in output.
             Exceptions will not be raised, but just written to output """
-        #print 'running clauses:', clauses
-        #print 'with methods:', methods
-    
         # run before method
         self.find_and_call_method('before', methods)
     
@@ -206,33 +248,6 @@ class Runner:
         return False
 
 
-def load_step(filename):
-    """ load methods from step definition file 
-    also supports directory name """
-    full_filename = os.path.abspath(filename)
-    directory = full_filename if os.path.isdir(full_filename) else os.path.dirname(full_filename)
-    sys.path.append(directory)
-
-    filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
-    if os.path.isdir(full_filename):
-        filename_parts = map(filename_part, os.listdir(full_filename))
-    else:
-        filename_parts = [filename_part(full_filename)]
-
-    modules = []
-    for filename_part in filename_parts:
-        try:
-            modules.append( __import__(filename_part) )
-        except SyntaxError, e:
-            pass
-        except ImportError, e:
-            pass
-        except ValueError, e:
-            pass
-
-    sys.path.pop()
-    return modules
-
 
 def run(feature_file, step_file, output=sys.stdout):
     """ default method for pyeature: run given feature file with given step file(or directory)
@@ -241,7 +256,7 @@ def run(feature_file, step_file, output=sys.stdout):
     """
     # load clauses from feature and methods from step definition
     clauses = extract(open(feature_file).read())
-    modules = load_step(step_file)
+    modules = Loader.load_step(step_file)
     clause_methods = Matcher().clause_methods_of(modules)
 
     # run clauses
@@ -258,4 +273,5 @@ if __name__ == '__main__':
 
     # run
     run(sys.argv[1], sys.argv[2])
+
 

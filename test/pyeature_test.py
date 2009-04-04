@@ -9,6 +9,8 @@ sys.path += [HOMEDIR, FILEDIR]
 import unittest
 import pyeature
 
+def pending(method):
+    print "\n[%s#%s] implement me!!!" % (method.__class__.__name__, method._testMethodName)
 
 class ExtractingClausesTestCase(unittest.TestCase):
     def setUp(self):
@@ -139,6 +141,12 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
         assert "before" in clause_method_names
         assert "after" in clause_method_names
 
+
+class LoaderTestCase(unittest.TestCase):
+    def test_loaded_modules_have_self(self):
+        pending(self)
+    def test_loaded_modules_have_self_which_directs_to_global_world(self):
+        pending(self)
 
 class RunFeatureTestCase(unittest.TestCase):
     def setUp(self):
