@@ -249,7 +249,7 @@ def run(feature_file, step_file, output=sys.stdout):
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        prog_name = sys.argv[0].rsplit(os.sep, 2)[-1]
+        prog_name = sys.argv[0].rsplit(os.sep, 1)[-1]
         sys.exit("""You must tell me the feature file and step definition file.
 
     Usage: %s some.feature some_step.py
@@ -257,4 +257,4 @@ if __name__ == '__main__':
 
     # run
     run(sys.argv[1], sys.argv[2])
-    
+

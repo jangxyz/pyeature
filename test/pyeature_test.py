@@ -112,6 +112,13 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
         ]:
             assert method_name in clause_method_names
 
+    def test_before_and_after_methods(self):
+        methods = self.matcher.clause_methods_of(self.module)
+        clause_method_names = [m.__name__ for m in methods]
+
+        #assert "before" in clause_method_names
+        assert "after" in clause_method_names
+
     def test_finding_clause_methods_from_list_of_modules(self):
         methods_from_a_module = self.matcher.clause_methods_of(self.module)
 
@@ -122,13 +129,16 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
         for m in methods_from_a_module:
             assert m in methods_from_modules
 
+    def test_finding_before_hook_from_another_module(self):
+        methods_from_a_module = self.matcher.clause_methods_of(self.module)
 
-    def test_before_and_after_methods(self):
-        methods = self.matcher.clause_methods_of(self.module)
+        modules = [self.module, __import__('hook')]
+        methods = self.matcher.clause_methods_of(modules)
         clause_method_names = [m.__name__ for m in methods]
 
         assert "before" in clause_method_names
         assert "after" in clause_method_names
+
 
 class RunFeatureTestCase(unittest.TestCase):
     def setUp(self):
