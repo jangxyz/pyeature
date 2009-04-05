@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
 
-from __future__ import with_statement
+from __future__ import with_statement; from contextlib import contextmanager
 import re, types, sys, traceback, os
 
 ##
@@ -43,16 +43,13 @@ class Helper:
         else:
             return os.path.dirname(full_filename)
 
-class appending_to_sys_path:
-    def __init__(self, path):
-        self.path = path
-    def __enter__(self):
-        import sys
-        sys.path.append(self.path)
-
-    def __exit__(self, type, value, traceback):
-        if 'sys' in locals() and isinstance(sys, types.ModuleType):
-            sys.path.pop()
+@contextmanager
+def appending_to_sys_path(path):
+    sys.path.append(path)
+    try:
+        yield
+    finally:
+        sys.path.pop()
 
 
 class Loader:
