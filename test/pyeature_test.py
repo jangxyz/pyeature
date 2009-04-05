@@ -215,7 +215,6 @@ class RunFeatureTestCase(unittest.TestCase):
         self.append_clause_method(lambda: y, 'after', clause_methods)
         self.assertRaises(NameError, self.runner.run_clauses, self.clauses, clause_methods, self.output)
 
-
     def test_run_with_a_step_definition_file(self):
         pyeature.run(self.sample_filename, self.step_filename, self.output)
 

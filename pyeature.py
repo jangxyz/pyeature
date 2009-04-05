@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
 
+from __future__ import with_statement
 import re, types, sys, traceback, os
 
 ##
@@ -21,8 +22,6 @@ EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 
 class World: 
     pass
-global_world = World()
-
 
 class Patterns:
     """ patterns used to parse sentence of feature file """
@@ -34,45 +33,71 @@ class Patterns:
     clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
     and_clause = re.compile(template % AND, re.IGNORECASE)
 
+class Helper:
+    @staticmethod
+    def directory_name(filename):
+        """ returns directory of the filename(or directory, if that's what you give me) """
+        full_filename = os.path.abspath(filename)
+        if os.path.isdir(full_filename):
+            return full_filename
+        else:
+            return os.path.dirname(full_filename)
+
+class appending_to_sys_path:
+    def __init__(self, path):
+        self.path = path
+    def __enter__(self):
+        import sys
+        sys.path.append(self.path)
+
+    def __exit__(self, type, value, traceback):
+        if 'sys' in locals() and isinstance(sys, types.ModuleType):
+            sys.path.pop()
+
 
 class Loader:
     """ loads methods from step definitions """
-    @staticmethod
-    def load_step(filename):
-        """ load methods from step definition file 
-        also supports directory name """
-        # add directory to sys path
-        full_filename = os.path.abspath(filename)
-        directory = full_filename if os.path.isdir(full_filename) else os.path.dirname(full_filename)
-        sys.path.append(directory)
+    global_world = World()
+
+    def __init__(self):
+        self.matcher = Matcher()
+
+    def load_steps(self, filename):
+        """ load methods from step definition file (or directory) """
+        with appending_to_sys_path(Helper.directory_name(filename)):
+            # find module names
+            full_filename  = os.path.abspath(filename)
+            filename_parts = self.find_module_names(full_filename)
+
+            # import modules and methods from it
+            modules = self.import_modules(filename_parts)
+            clause_methods = self.matcher.clause_methods_of(modules)
+            return clause_methods
+
+    def import_modules(self, module_names):
+        """ import every modules possible given their names (not files) """
+        return filter(None, [self.try_importing_module(name) for name in module_names])
+
+    def try_importing_module(self, module_name):
+        """ try importing a module, catching all exceptions """
+        try:
+            new_module = __import__(module_name)
+            new_module.self = self.global_world
+            return new_module
+        except SyntaxError, e:
+            pass
+        except ImportError, e:
+            pass
+        except ValueError, e:
+            pass
     
-        # find module names, either from filename or directory
+    def find_module_names(self, full_filename):
+        """ find module names, either from filename or directory """
         filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
         if os.path.isdir(full_filename):
-            filename_parts = map(filename_part, os.listdir(full_filename))
+            return map(filename_part, os.listdir(full_filename))
         else:
-            filename_parts = [filename_part(full_filename)]
-    
-        # import every possible modules you can
-        modules = []
-        for filename_part in filename_parts:
-            try:
-                new_module = __import__(filename_part)
-                new_module.self = global_world
-                modules.append( new_module )
-            except SyntaxError, e:
-                pass
-            except ImportError, e:
-                pass
-            except ValueError, e:
-                pass
-    
-        # remove last added sys path directory
-        sys.path.pop()
-    
-        return modules
-
-
+            return [filename_part(full_filename)]
 
 def extract(text):
     """ extracts a list of clauses from given text """
@@ -249,15 +274,17 @@ class Runner:
 
 
 
-def run(feature_file, step_file, output=sys.stdout):
+def run(feature_file, step_file_dir, output=sys.stdout):
     """ default method for pyeature: run given feature file with given step file(or directory)
     
     returns number of successful steps ran
     """
     # load clauses from feature and methods from step definition
-    clauses = extract(open(feature_file).read())
-    modules = Loader.load_step(step_file)
-    clause_methods = Matcher().clause_methods_of(modules)
+    #clauses = extract(open(feature_file).read())
+    clauses = extract_file(feature_file)
+    #modules = Loader().load_steps(step_file_dir)
+    #clause_methods = Matcher().clause_methods_of(modules)
+    clause_methods = Loader().load_steps(step_file_dir)
 
     # run clauses
     return Runner().run_clauses(clauses, clause_methods, output)
