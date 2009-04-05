@@ -90,10 +90,6 @@ class Loader:
         #    Helper.error("%s:%s: %s" % (e.filename, e.lineno, e.msg))
         #    raise e
         except ImportError, e:
-            print dir(e)
-            print e.args
-            print e.message
-            print e
             Helper.error("%s:%s: %s" % (e.filename, e.lineno, e.msg))
             pass
         except ValueError, e:
@@ -195,6 +191,9 @@ class Matcher:
 
 
 class Runner:
+    def __init__(self):
+        self.matcher = Matcher()
+
     @staticmethod
     def is_feature(line):  return Patterns.feature.match(line) != None
 
@@ -207,11 +206,10 @@ class Runner:
             write result in output.
             Exceptions will not be raised, but just written to output """
         # run before method
-        self.find_and_call_method('before', methods)
+        self.find_and_call_method_by_name('before', methods)
     
         success_count = 0
-        suggest_method = None
-        matcher = Matcher()
+        suggest_methods = []
         for i,clause in enumerate(clauses):
             output.write("\n" if i is not 0 else "")
     
@@ -221,17 +219,18 @@ class Runner:
                 continue
     
             # find method
-            method_name = matcher.clause2methodname(clause)
-            clause_method = filter(lambda x: x.__name__ == method_name, methods)
+            #method_name = self.matcher.clause2methodname(clause)
+            #clause_method = filter(lambda x: x.__name__ == method_name, methods)
+            clause_method = self.find_method_by_clause(clause, methods)
     
             # stop if no method found
-            if len(clause_method) == 0:
+            if not clause_method:
                 self.report(clause, "stop", output)
-                suggest_method = method_name
+                suggest_methods.append( self.matcher.clause2methodname(clause) ) # hey, make this method!
                 break
     
             # run method
-            success = self.run_method(clause_method[0], clause, output)
+            success = self.run_method(clause_method, clause, output)
             if not success:
                 break
             success_count += 1
@@ -240,18 +239,37 @@ class Runner:
         output.write("\n" if i is not 0 else "")
         for rest_clause in clauses[i+1:]:
             self.report(rest_clause+"\n", "skip", output)
+            if not self.find_method_by_clause(rest_clause, methods):
+                suggest_methods.append( self.matcher.clause2methodname(rest_clause) ) # hey, make this method!
+                
         output.write("\n")
     
         # run after method
-        self.find_and_call_method('after', methods)
+        self.find_and_call_method_by_name('after', methods)
 
-        if suggest_method:
+        if suggest_methods:
+            method_definitions = ["""def %s():\n\tpass\n""" % m for m in suggest_methods]
             output.write("""\nCreate the following method: 
 
-    def %s():
-        pass\n\n""" % suggest_method)
+%s\n""" % "\n".join(method_definitions)) # """
         return success_count
 
+
+    def find_method_by_name(self, name, methods):
+        for m in methods:
+            if m.__name__ == name:
+                return m
+        else:
+            return None
+
+    def find_method_by_clause(self, clause, methods):
+        method_name = self.matcher.clause2methodname(clause)
+        return self.find_method_by_name(method_name, methods)
+
+    def find_and_call_method_by_name(self, name, methods):
+        m = self.find_method_by_name(name, methods)
+        m() if m else None
+        return not not m
 
     def report(self, content, status, output):
         # skip stop fail sucess
@@ -285,13 +303,6 @@ class Runner:
             self.report(clause, "success", output)
             return True
 
-
-    def find_and_call_method(self, name, methods):
-        for m in methods:
-            if m.__name__ == name:
-                m()
-                return True
-        return False
 
 
 
