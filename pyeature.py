@@ -43,6 +43,10 @@ class Helper:
         else:
             return os.path.dirname(full_filename)
 
+    @staticmethod
+    def error(msg):
+        sys.stderr.write(msg+"\n")
+
 @contextmanager
 def appending_to_sys_path(path):
     sys.path.append(path)
@@ -73,7 +77,8 @@ class Loader:
 
     def import_modules(self, module_names):
         """ import every modules possible given their names (not files) """
-        return filter(None, [self.try_importing_module(name) for name in module_names])
+        imported_modules = [self.try_importing_module(name) for name in module_names]
+        return filter(None, imported_modules)
 
     def try_importing_module(self, module_name):
         """ try importing a module, catching all exceptions """
@@ -81,9 +86,15 @@ class Loader:
             new_module = __import__(module_name)
             new_module.self = self.global_world
             return new_module
-        except SyntaxError, e:
-            pass
+        #except SyntaxError, e:
+        #    Helper.error("%s:%s: %s" % (e.filename, e.lineno, e.msg))
+        #    raise e
         except ImportError, e:
+            print dir(e)
+            print e.args
+            print e.message
+            print e
+            Helper.error("%s:%s: %s" % (e.filename, e.lineno, e.msg))
             pass
         except ValueError, e:
             pass
@@ -92,9 +103,16 @@ class Loader:
         """ find module names, either from filename or directory """
         filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
         if os.path.isdir(full_filename):
-            return map(filename_part, os.listdir(full_filename))
+            files = os.listdir(full_filename)
+            files = filter(lambda x: x.endswith(('.py', '.pyc')), files)
+            names = map(filename_part, files)
         else:
-            return [filename_part(full_filename)]
+            names = [filename_part(full_filename)]
+        # uniq
+        names = list(set(names))
+
+        return names
+
 
 def extract(text):
     """ extracts a list of clauses from given text """
@@ -183,7 +201,6 @@ class Runner:
     @staticmethod
     def is_scenario(line): return Patterns.scenario.match(line) != None
 
-
     def run_clauses(self, clauses, methods, output=sys.stdout):
         """ with clauses and set of method candidates, 
             run each clause in order and
@@ -193,6 +210,7 @@ class Runner:
         self.find_and_call_method('before', methods)
     
         success_count = 0
+        suggest_method = None
         matcher = Matcher()
         for i,clause in enumerate(clauses):
             output.write("\n" if i is not 0 else "")
@@ -209,6 +227,7 @@ class Runner:
             # stop if no method found
             if len(clause_method) == 0:
                 self.report(clause, "stop", output)
+                suggest_method = method_name
                 break
     
             # run method
@@ -226,6 +245,11 @@ class Runner:
         # run after method
         self.find_and_call_method('after', methods)
 
+        if suggest_method:
+            output.write("""\nCreate the following method: 
+
+    def %s():
+        pass\n\n""" % suggest_method)
         return success_count
 
 
