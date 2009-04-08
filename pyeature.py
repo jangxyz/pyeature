@@ -175,7 +175,6 @@ class Matcher:
         methods = filter(lambda x: self.is_clause_method_name(x.__name__), methods)
         #methods = filter(self.is_clause_method_name, [m.__name__ for m in methods])
 
-        #return [item(m) for m in methods]
         return methods
         
     def is_clause_method_name(self, method_name):
@@ -239,19 +238,23 @@ class Runner:
         output.write("\n" if i is not 0 else "")
         for rest_clause in clauses[i+1:]:
             self.report(rest_clause+"\n", "skip", output)
+
             if not self.find_method_by_clause(rest_clause, methods):
-                suggest_methods.append( self.matcher.clause2methodname(rest_clause) ) # hey, make this method!
-                
+                method_name = self.matcher.clause2methodname(rest_clause)
+                if method_name:
+                    suggest_methods.append(method_name) # hey, make this method!
         output.write("\n")
     
         # run after method
         self.find_and_call_method_by_name('after', methods)
 
+        # suggest unimplemented methods
         if suggest_methods:
-            method_definitions = ["""def %s():\n\tpass\n""" % m for m in suggest_methods]
-            output.write("""\nCreate the following method: 
+            method_definitions = ["""def %s():\n\tassert False, "Implement me!"\n""" % m for m in suggest_methods]
+            suggesting_method_doc = """\nCreate the following method: \n
+%s\n""" % "\n".join(method_definitions) # """
+            output.write(suggesting_method_doc)
 
-%s\n""" % "\n".join(method_definitions)) # """
         return success_count
 
 
@@ -271,7 +274,7 @@ class Runner:
         m() if m else None
         return not not m
 
-    def report(self, content, status, output):
+    def report(self, content, status, output=sys.stdout):
         # skip stop fail sucess
         status_key = {
             "skip": '-',
@@ -283,7 +286,7 @@ class Runner:
             output.write("("+ status_key[status] +") ")
         except KeyError:
             pass
-
+    
         output.write(content)
         if status == "fail":
             output.write("\n")
