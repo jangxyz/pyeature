@@ -189,9 +189,84 @@ class Matcher:
             return False
 
 
+class Reporter:
+    def __init__(self, output=sys.stdout):
+        self.output = output
+
+    def report(self, content, status=None):
+        # skip stop fail sucess
+        status_key = {
+            "skip":    "-",
+            "stop":    "X",
+            "fail":    "F",
+            "success": ".",
+        }
+        try:
+            self.write("("+ status_key[status] +") ")
+        except KeyError:
+            pass
+    
+        self.write(content)
+        if status == "fail":
+            self.write("\n")
+            self.write('-'*60 + "\n")
+            traceback.print_exc(file=self.output)
+            self.write('-'*60)
+
+    def write(self, msg, code=None):
+        self.output.write(msg)
+
+class ColorReporter(Reporter):
+    ANSI_CODES = {
+        "reset"     : "\x1b[0m",
+        "bold"      : "\x1b[01m",
+        "boldcyan"  : "\x1b[36;01m",
+        "cyan"      : "\x1b[36;06m",
+        "fuscia"    : "\x1b[35;01m",
+        "purple"    : "\x1b[35;06m",
+        "boldblue"  : "\x1b[34;01m",
+        "blue"      : "\x1b[34;06m",
+        "boldgreen" : "\x1b[32;01m",
+        "green"     : "\x1b[32;06m",
+        "yellow"    : "\x1b[33;01m",
+        "brown"     : "\x1b[33;06m",
+        "boldred"   : "\x1b[31;01m",
+        "red"       : "\x1b[31;06m",
+    }
+
+    def report(self, content, status=None):
+        # skip stop fail sucess
+        color_key = {
+            "skip":    "cyan",
+            "stop":    "yellow",
+            "fail":    "red",
+            "success": "green",
+        }
+        try:
+            code = color_key[status]
+        except KeyError:
+            code = None
+    
+        self.write(content, code)
+        if status == "fail":
+            self.write("\n")
+            self.write('-'*60 + "\n")
+            traceback.print_exc(file=self.output)
+            self.write('-'*60)
+
+    def write(self, msg, code=None):
+        if code and code in self.ANSI_CODES:
+            self.output.write(self.ANSI_CODES[code])
+        self.output.write(msg)
+        if code:
+            self.output.write(self.ANSI_CODES["reset"])
+
+
+
 class Runner:
-    def __init__(self):
+    def __init__(self, output=sys.stdout):
         self.matcher = Matcher()
+        self.reporter = Reporter(output)
 
     @staticmethod
     def is_feature(line):  return Patterns.feature.match(line) != None
@@ -199,7 +274,7 @@ class Runner:
     @staticmethod
     def is_scenario(line): return Patterns.scenario.match(line) != None
 
-    def run_clauses(self, clauses, methods, output=sys.stdout):
+    def run_clauses(self, clauses, methods):
         """ with clauses and set of method candidates, 
             run each clause in order and
             write result in output.
@@ -210,40 +285,38 @@ class Runner:
         success_count = 0
         suggest_methods = []
         for i,clause in enumerate(clauses):
-            output.write("\n" if i is not 0 else "")
+            self.reporter.write("\n" if i is not 0 else "")
     
             # skip 
             if Runner.is_feature(clause) or Runner.is_scenario(clause):
-                self.report(clause, "skip", output)
+                self.reporter.report(clause)
                 continue
     
             # find method
-            #method_name = self.matcher.clause2methodname(clause)
-            #clause_method = filter(lambda x: x.__name__ == method_name, methods)
             clause_method = self.find_method_by_clause(clause, methods)
     
             # stop if no method found
             if not clause_method:
-                self.report(clause, "stop", output)
+                self.reporter.report(clause, "stop")
                 suggest_methods.append( self.matcher.clause2methodname(clause) ) # hey, make this method!
                 break
     
             # run method
-            success = self.run_method(clause_method, clause, output)
+            success = self.run_method(clause_method, clause)
             if not success:
                 break
             success_count += 1
     
         # skip remaining methods after stop or fail
-        output.write("\n" if i is not 0 else "")
+        self.reporter.write("\n" if i is not 0 else "")
         for rest_clause in clauses[i+1:]:
-            self.report(rest_clause+"\n", "skip", output)
+            self.reporter.report(rest_clause+"\n", "skip")
 
             if not self.find_method_by_clause(rest_clause, methods):
                 method_name = self.matcher.clause2methodname(rest_clause)
                 if method_name:
                     suggest_methods.append(method_name) # hey, make this method!
-        output.write("\n")
+        self.reporter.write("\n")
     
         # run after method
         self.find_and_call_method_by_name('after', methods)
@@ -253,7 +326,7 @@ class Runner:
             method_definitions = ["""def %s():\n\tassert False, "Implement me!"\n""" % m for m in suggest_methods]
             suggesting_method_doc = """\nCreate the following method: \n
 %s\n""" % "\n".join(method_definitions) # """
-            output.write(suggesting_method_doc)
+            self.reporter.write(suggesting_method_doc)
 
         return success_count
 
@@ -274,36 +347,16 @@ class Runner:
         m() if m else None
         return not not m
 
-    def report(self, content, status, output=sys.stdout):
-        # skip stop fail sucess
-        status_key = {
-            "skip": '-',
-            "stop": "X",
-            "fail": "F",
-            "success": ".",
-        }
-        try:
-            output.write("("+ status_key[status] +") ")
-        except KeyError:
-            pass
-    
-        output.write(content)
-        if status == "fail":
-            output.write("\n")
-            output.write('-'*60 + "\n")
-            traceback.print_exc(file=output)
-            output.write('-'*60)
 
-
-    def run_method(self, method, clause, output):
+    def run_method(self, method, clause):
         """ run a clause with method given, and report result to output """
         try:
             method()
         except:
-            self.report(clause, "fail", output)
+            self.reporter.report(clause, "fail")
             return False
         else:
-            self.report(clause, "success", output)
+            self.reporter.report(clause, "success")
             return True
 
 
@@ -322,7 +375,7 @@ def run(feature_file, step_file_dir, output=sys.stdout):
     clause_methods = Loader().load_steps(step_file_dir)
 
     # run clauses
-    return Runner().run_clauses(clauses, clause_methods, output)
+    return Runner(output).run_clauses(clauses, clause_methods)
 
 
 if __name__ == '__main__':
