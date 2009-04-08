@@ -23,7 +23,7 @@ Then /the result should be (.*) on the screen/ do |result|
   @result.should == result.to_f * 10
 end
 
-Then /the result should be a number/ do
+Then /xxthe result should be a number/ do
   @result.should be_instance_of(Fixnum)
 end
 

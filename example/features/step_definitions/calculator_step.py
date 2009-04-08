@@ -23,7 +23,7 @@ def then_the_result_should_be_120_on_the_screen():
     global result
     assert result == 1200
 
-def then_the_result_should_be_a_number():
+def then_xxthe_result_should_be_a_number():
     global result
     assert type(result) is int
 
