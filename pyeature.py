@@ -266,7 +266,7 @@ class ColorReporter(Reporter):
 class Runner:
     def __init__(self, output=sys.stdout):
         self.matcher = Matcher()
-        self.reporter = Reporter(output)
+        self.reporter = ColorReporter(output)
 
     @staticmethod
     def is_feature(line):  return Patterns.feature.match(line) != None
