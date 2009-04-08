@@ -228,8 +228,8 @@ class ColorReporter(Reporter):
         "blue"      : "\x1b[34;06m",
         "boldgreen" : "\x1b[32;01m",
         "green"     : "\x1b[32;06m",
-        "yellow"    : "\x1b[33;01m",
-        "brown"     : "\x1b[33;06m",
+        "boldyellow": "\x1b[33;01m",
+        "yellow"    : "\x1b[33;06m",
         "boldred"   : "\x1b[31;01m",
         "red"       : "\x1b[31;06m",
     }
@@ -310,9 +310,10 @@ class Runner:
         # skip remaining methods after stop or fail
         self.reporter.write("\n" if i is not 0 else "")
         for rest_clause in clauses[i+1:]:
-            self.reporter.report(rest_clause+"\n", "skip")
-
-            if not self.find_method_by_clause(rest_clause, methods):
+            if self.find_method_by_clause(rest_clause, methods):
+                self.reporter.report(rest_clause+"\n", "skip")
+            else:
+                self.reporter.report(rest_clause+"\n", "stop")
                 method_name = self.matcher.clause2methodname(rest_clause)
                 if method_name:
                     suggest_methods.append(method_name) # hey, make this method!
@@ -326,7 +327,7 @@ class Runner:
             method_definitions = ["""def %s():\n\tassert False, "Implement me!"\n""" % m for m in suggest_methods]
             suggesting_method_doc = """\nCreate the following method: \n
 %s\n""" % "\n".join(method_definitions) # """
-            self.reporter.write(suggesting_method_doc)
+            self.reporter.report(suggesting_method_doc, "stop")
 
         return success_count
 
