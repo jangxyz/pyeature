@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding: utf-8
 
-from __future__ import with_statement; from contextlib import contextmanager
+#from __future__ import with_statement; from contextlib import contextmanager
 import re, types, sys, traceback, os
 
 ##
@@ -47,13 +47,14 @@ class Helper:
     def error(msg):
         sys.stderr.write(msg+"\n")
 
-@contextmanager
-def appending_to_sys_path(path):
-    sys.path.append(path)
-    try:
-        yield
-    finally:
-        sys.path.pop()
+#@contextmanager
+#def appending_to_sys_path(path):
+#    print 'appending', path
+#    sys.path.append(path)
+#    try:
+#        yield
+#    finally:
+#        sys.path.pop()
 
 
 class Loader:
@@ -65,7 +66,9 @@ class Loader:
 
     def load_steps(self, filename):
         """ load methods from step definition file (or directory) """
-        with appending_to_sys_path(Helper.directory_name(filename)):
+        #with appending_to_sys_path(Helper.directory_name(filename)):
+        sys.path.append(Helper.directory_name(filename))
+        if True:
             # find module names
             full_filename  = os.path.abspath(filename)
             filename_parts = self.find_module_names(full_filename)
@@ -74,6 +77,7 @@ class Loader:
             modules = self.import_modules(filename_parts)
             clause_methods = self.matcher.clause_methods_of(modules)
             return clause_methods
+        sys.path.pop()
 
     def import_modules(self, module_names):
         """ import every modules possible given their names (not files) """
@@ -159,7 +163,9 @@ class Matcher:
 
     def clause_methods_of(self, modules):
         """ return list of clause methods from given modules """
-        modules = [modules] if not isinstance(modules, types.ListType) else modules
+        #modules = [modules] if not isinstance(modules, types.ListType) else modules
+        if not isinstance(modules, types.ListType): 
+            modules = [modules]
 
         # search each modules for functions
         methods = []
@@ -285,7 +291,8 @@ class Runner:
         success_count = 0
         suggest_methods = []
         for i,clause in enumerate(clauses):
-            self.reporter.write("\n" if i is not 0 else "")
+            #self.reporter.write("\n" if i is not 0 else "")
+            if i is not 0: self.reporter.write("\n")
     
             # skip 
             if Runner.is_feature(clause) or Runner.is_scenario(clause):
@@ -308,7 +315,8 @@ class Runner:
             success_count += 1
     
         # skip remaining methods after stop or fail
-        self.reporter.write("\n" if i is not 0 else "")
+        if i is not 0: self.reporter.write("\n")
+        #self.reporter.write("\n" if i is not 0 else "")
         for rest_clause in clauses[i+1:]:
             if self.find_method_by_clause(rest_clause, methods):
                 self.reporter.report(rest_clause+"\n", "skip")
@@ -345,7 +353,9 @@ class Runner:
 
     def find_and_call_method_by_name(self, name, methods):
         m = self.find_method_by_name(name, methods)
-        m() if m else None
+        #m() if m else None
+        if m: 
+            m()
         return not not m
 
 
