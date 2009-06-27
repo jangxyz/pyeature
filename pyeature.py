@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8
 
-#from __future__ import with_statement; from contextlib import contextmanager
 import re, types, sys, traceback, os
+sys.path.append(os.getcwd())
 
 ##
 ## Keyword definitions
@@ -19,6 +19,7 @@ ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
 EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 ##
 ##
+
 
 class World: 
     pass
@@ -47,15 +48,6 @@ class Helper:
     def error(msg):
         sys.stderr.write(msg+"\n")
 
-#@contextmanager
-#def appending_to_sys_path(path):
-#    print 'appending', path
-#    sys.path.append(path)
-#    try:
-#        yield
-#    finally:
-#        sys.path.pop()
-
 
 class Loader:
     """ loads methods from step definitions """
@@ -66,23 +58,22 @@ class Loader:
 
     def load_steps(self, filename):
         """ load methods from step definition file (or directory) """
-        #with appending_to_sys_path(Helper.directory_name(filename)):
         sys.path.append(Helper.directory_name(filename))
-        if True:
-            # find module names
-            full_filename  = os.path.abspath(filename)
-            filename_parts = self.find_module_names(full_filename)
+        # find module names
+        full_filename  = os.path.abspath(filename)
+        filename_parts = self.find_module_names(full_filename)
 
-            # import modules and methods from it
-            modules = self.import_modules(filename_parts)
-            clause_methods = self.matcher.clause_methods_of(modules)
-            return clause_methods
+        # import modules and methods from it
+        modules = self.import_modules(filename_parts)
+        clause_methods = self.matcher.clause_methods_of(modules)
         sys.path.pop()
+        return clause_methods
 
     def import_modules(self, module_names):
         """ import every modules possible given their names (not files) """
         imported_modules = [self.try_importing_module(name) for name in module_names]
-        return filter(None, imported_modules)
+        imported_modules = filter(None, imported_modules)
+        return imported_modules
 
     def try_importing_module(self, module_name):
         """ try importing a module, catching all exceptions """
@@ -94,8 +85,7 @@ class Loader:
         #    Helper.error("%s:%s: %s" % (e.filename, e.lineno, e.msg))
         #    raise e
         except ImportError, e:
-            Helper.error("%s:%s: %s" % (e.filename, e.lineno, e.msg))
-            pass
+            Helper.error("%s: failed to load %s" % (str(e), module_name) )
         except ValueError, e:
             pass
     
@@ -104,7 +94,7 @@ class Loader:
         filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
         if os.path.isdir(full_filename):
             files = os.listdir(full_filename)
-            files = filter(lambda x: x.endswith(('.py', '.pyc')), files)
+            files = filter(lambda x: x.endswith('.py') or x.endswith('.pyc'), files)
             names = map(filename_part, files)
         else:
             names = [filename_part(full_filename)]
