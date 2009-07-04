@@ -21,7 +21,25 @@ EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 ##
 
 
-class World: 
+def given(clause_name):
+    def working_method(method):
+        return method
+    return working_method
+
+
+def extract(text):
+    """ extracts a list of clauses from given text """
+    extracts = [line.rstrip("\n") for line in text.split("\n")]
+    #extracts = filter(lambda line: Patterns.all_clauses.match(line), extracts)
+    extracts = filter(lambda line: Patterns.every_keywords.match(line), extracts)
+    return extracts
+
+def extract_file(filename):
+    """ same as extract(), but opens a given filename """
+    return extract(open(filename).read())
+
+
+class World:
     pass
 
 class Patterns:
@@ -33,6 +51,7 @@ class Patterns:
     every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
     clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
     and_clause = re.compile(template % AND, re.IGNORECASE)
+
 
 class Helper:
     @staticmethod
@@ -52,28 +71,39 @@ class Helper:
 class Loader:
     """ loads methods from step definitions """
     global_world = World()
-
-    def __init__(self):
-        self.matcher = Matcher()
+    loaded_clauses = {}
 
     def load_steps(self, filename):
-        """ load methods from step definition file (or directory) """
+        """ load methods from step definition file (or directory) 
+        
+        it first finds module names from file or directory,
+        imports the modules,
+        returning the methods from it
+        """
         sys.path.append(Helper.directory_name(filename))
+
         # find module names
         full_filename  = os.path.abspath(filename)
         filename_parts = self.find_module_names(full_filename)
 
         # import modules and methods from it
         modules = self.import_modules(filename_parts)
-        clause_methods = self.matcher.clause_methods_of(modules)
+        clause_methods = Matcher.clause_methods_of(modules)
+
+        for method in clause_methods:
+            self.loaded_clauses[method.__name__] = method
+
         sys.path.pop()
+
         return clause_methods
+
 
     def import_modules(self, module_names):
         """ import every modules possible given their names (not files) """
         imported_modules = [self.try_importing_module(name) for name in module_names]
         imported_modules = filter(None, imported_modules)
         return imported_modules
+
 
     def try_importing_module(self, module_name):
         """ try importing a module, catching all exceptions """
@@ -89,6 +119,7 @@ class Loader:
         except ValueError, e:
             pass
     
+
     def find_module_names(self, full_filename):
         """ find module names, either from filename or directory """
         filename_part = lambda x: os.path.basename(x).rsplit('.', 1)[0]
@@ -104,22 +135,12 @@ class Loader:
         return names
 
 
-def extract(text):
-    """ extracts a list of clauses from given text """
-    extracts = [line.rstrip("\n") for line in text.split("\n")]
-    #extracts = filter(lambda line: Patterns.all_clauses.match(line), extracts)
-    extracts = filter(lambda line: Patterns.every_keywords.match(line), extracts)
-    return extracts
-
-def extract_file(filename):
-    """ same as extract(), but opens a given filename """
-    return extract(open(filename).read())
-
 
 class Matcher:
     """ match each sentence with clauses """
-    def __init__(self):
+    def __init__(self, clause_methods=[]):
         self.previous_clause_name = None
+        self.clause_methods = clause_methods
 
     def clause2methodname(self, clause):
         """ convert a clause sentence into a method name
@@ -135,8 +156,9 @@ class Matcher:
         clause = Patterns.and_clause.sub(clause_name, clause)
         return re.sub(r'\W+', '_', clause.lstrip()).lower()
     
+
     def clause_name_of(self, sentence):
-        """  return clause name of sentence, if it is a clause
+        """  return clause name of sentence, if it is a clause (None if not)
                 Given|When|Then => itself
                 And             => previous clause name
                 anything else   => None
@@ -147,13 +169,29 @@ class Matcher:
             self.previous_clause_name = matched.group()
         elif not Patterns.and_clause.match(sentence):
             # None if it isn't And clause
-            return None
+            return
         return self.previous_clause_name
 
 
-    def clause_methods_of(self, modules):
+    def find_method_by_name(self, name):
+        for m in self.clause_methods:
+            if m.__name__ == name:
+                return m
+        else:
+            return None
+
+
+    def find_method_by_clause(self, clause):
+        ''' find and return apropriate method for the given clause '''
+        for c in [clause, self.clause2methodname(clause)]:
+            method = Loader.loaded_clauses.get(c, None)
+            if method:
+                return method
+
+
+    @staticmethod
+    def clause_methods_of(modules):
         """ return list of clause methods from given modules """
-        #modules = [modules] if not isinstance(modules, types.ListType) else modules
         if not isinstance(modules, types.ListType): 
             modules = [modules]
 
@@ -167,13 +205,13 @@ class Matcher:
             methods.extend(new_methods)
 
         # filter by clause names
-        #methods = filter(self.is_clause_method_name, methods)
-        methods = filter(lambda x: self.is_clause_method_name(x.__name__), methods)
-        #methods = filter(self.is_clause_method_name, [m.__name__ for m in methods])
+        methods = filter(lambda x: Matcher.is_clause_method_name(x.__name__), methods)
 
         return methods
         
-    def is_clause_method_name(self, method_name):
+
+    @staticmethod
+    def is_clause_method_name(method_name):
         """ returns true if method name starts with given_, when_, or then_,
                       or if is before or after """
         if method_name in ["before", "after"]:
@@ -211,6 +249,7 @@ class Reporter:
 
     def write(self, msg, code=None):
         self.output.write(msg)
+
 
 class ColorReporter(Reporter):
     ANSI_CODES = {
@@ -260,8 +299,8 @@ class ColorReporter(Reporter):
 
 
 class Runner:
-    def __init__(self, output=sys.stdout):
-        self.matcher = Matcher()
+    def __init__(self, clause_methods=[], output=sys.stdout):
+        self.matcher = Matcher(clause_methods)
         self.reporter = ColorReporter(output)
 
     @staticmethod
@@ -270,32 +309,35 @@ class Runner:
     @staticmethod
     def is_scenario(line): return Patterns.scenario.match(line) != None
 
-    def run_clauses(self, clauses, methods):
-        """ with clauses and set of method candidates, 
+    def run_clauses(self, clauses):
+        """ given clauses and set of method candidates, 
             run each clause in order and
             write result in output.
             Exceptions will not be raised, but just written to output """
         # run before method
-        self.find_and_call_method_by_name('before', methods)
+        before = self.matcher.find_method_by_name('before')
+        if before:
+            before()
     
         success_count = 0
         suggest_methods = []
+        # run until finish or error
         for i,clause in enumerate(clauses):
-            #self.reporter.write("\n" if i is not 0 else "")
             if i is not 0: self.reporter.write("\n")
     
-            # skip 
+            # skip feature and scenario
             if Runner.is_feature(clause) or Runner.is_scenario(clause):
                 self.reporter.report(clause)
                 continue
     
-            # find method
-            clause_method = self.find_method_by_clause(clause, methods)
+            # find method for clause
+            clause_method = self.matcher.find_method_by_clause(clause)
     
             # stop if no method found
             if not clause_method:
                 self.reporter.report(clause, "stop")
-                suggest_methods.append( self.matcher.clause2methodname(clause) ) # hey, make this method!
+                method_name = self.matcher.clause2methodname(clause)
+                suggest_methods.append( method_name )
                 break
     
             # run method
@@ -303,50 +345,63 @@ class Runner:
             if not success:
                 break
             success_count += 1
-    
-        # skip remaining methods after stop or fail
         if i is not 0: self.reporter.write("\n")
-        #self.reporter.write("\n" if i is not 0 else "")
-        for rest_clause in clauses[i+1:]:
-            if self.find_method_by_clause(rest_clause, methods):
-                self.reporter.report(rest_clause+"\n", "skip")
-            else:
-                self.reporter.report(rest_clause+"\n", "stop")
-                method_name = self.matcher.clause2methodname(rest_clause)
-                if method_name:
-                    suggest_methods.append(method_name) # hey, make this method!
-        self.reporter.write("\n")
     
         # run after method
-        self.find_and_call_method_by_name('after', methods)
+        after = self.matcher.find_method_by_name('after')
+        if after:
+            after()
 
-        # suggest unimplemented methods
-        if suggest_methods:
-            method_definitions = ["""def %s():\n\tassert False, "Implement me!"\n""" % m for m in suggest_methods]
-            suggesting_method_doc = """\nCreate the following method: \n
-%s\n""" % "\n".join(method_definitions) # """
-            self.reporter.report(suggesting_method_doc, "stop")
+
+        suggest_methods = self.report_remaining_methods(clauses[i+1:], suggest_methods)
+        self.report_suggesting_unimplemented_methods(suggest_methods)
 
         return success_count
 
 
-    def find_method_by_name(self, name, methods):
-        for m in methods:
-            if m.__name__ == name:
-                return m
-        else:
-            return None
+    def report_remaining_methods(self, remaining_clauses, suggest_methods):
+        for clause in remaining_clauses:
+            if self.matcher.find_method_by_clause(clause):
+                self.reporter.report(clause+"\n", "skip")
+            else:
+                self.reporter.report(clause+"\n", "stop")
+                method_name = self.matcher.clause2methodname(clause)
+                suggest_methods.append(method_name)
+        self.reporter.write("\n")
+        return suggest_methods
 
-    def find_method_by_clause(self, clause, methods):
-        method_name = self.matcher.clause2methodname(clause)
-        return self.find_method_by_name(method_name, methods)
 
-    def find_and_call_method_by_name(self, name, methods):
-        m = self.find_method_by_name(name, methods)
-        #m() if m else None
-        if m: 
-            m()
-        return not not m
+    def report_suggesting_unimplemented_methods(self, methods_to_suggest):
+        if methods_to_suggest:
+            method_definitions = ["""def %s():\n\tassert False, "Implement me!"\n""" % m for m in methods_to_suggest]
+            suggesting_method_doc = """\nCreate the following method: \n\n%s\n""" % "\n".join(method_definitions)
+            self.reporter.report(suggesting_method_doc, "stop")
+
+
+    #def find_method_by_name(self, name, methods):
+    #    for m in methods:
+    #        if m.__name__ == name:
+    #            return m
+    #    else:
+    #        return None
+
+
+    #def find_method_by_clause(self, clause, methods):
+    #    ''' find and return apropriate method for the given clause '''
+    #    #method_name = self.matcher.clause2methodname(clause)
+    #    #return self.find_method_by_name(method_name, methods)
+    #    for c in [clause, self.matcher.clause2methodname(clause)]:
+    #        method = Loader.loaded_clauses.get(c, None)
+    #        if method:
+    #            return method
+
+
+    #def find_and_call_method_by_name(self, name, methods):
+    #    ''' run a method that matches the exact name '''
+    #    m = self.matcher.find_method_by_name(name)
+    #    if m: 
+    #        m()
+    #    return not not m
 
 
     def run_method(self, method, clause):
@@ -371,12 +426,10 @@ def run(feature_file, step_file_dir, output=sys.stdout):
     # load clauses from feature and methods from step definition
     #clauses = extract(open(feature_file).read())
     clauses = extract_file(feature_file)
-    #modules = Loader().load_steps(step_file_dir)
-    #clause_methods = Matcher().clause_methods_of(modules)
     clause_methods = Loader().load_steps(step_file_dir)
 
     # run clauses
-    return Runner(output).run_clauses(clauses, clause_methods)
+    return Runner(clause_methods, output=output).run_clauses(clauses)
 
 
 if __name__ == '__main__':
@@ -398,5 +451,4 @@ if __name__ == '__main__':
 
     # run
     run(sys.argv[1], step_definition_directory)
-
 
