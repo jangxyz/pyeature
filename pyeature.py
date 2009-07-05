@@ -113,6 +113,8 @@ class Loader:
                 new_module = __import__(module_name)
                 new_module = reload(new_module)
             else:
+                #print '- globals:', globals().keys()
+                #print '- locals:',  locals().keys()
                 new_module = __import__(module_name)
 
             new_module.self = self.global_world

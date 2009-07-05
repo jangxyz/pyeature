@@ -21,8 +21,11 @@ def pending(method):
 
 
 class LoaderTestCase(unittest.TestCase):
-    def setUp(self):    pyeature.Loader.loaded_clauses = {}
-    def tearDown(self): pyeature.Loader.loaded_clauses = {}
+    def setUp(self):    
+        pyeature.Loader.loaded_clauses = {}
+        pyeature.Loader.global_world = pyeature.World()
+    def tearDown(self): 
+        pyeature.Loader.loaded_clauses = {}
 
 class BasicLoadTestCase(LoaderTestCase):
     ''' 모듈 로딩 '''
@@ -50,20 +53,26 @@ class LoadStepWithSelfTestCase(LoaderTestCase):
         # step file containing 'self.value = 3'
         self.step_filename = os.path.join(FILEDIR, 'step_with_self.py')
 
-    def test_loaded_modules_have_self(self):
+    def test2_loaded_modules_have_self(self):
         ''' [로딩] 로드된 모듈은 self를 알고 있다 '''
+        methods = pyeature.Loader().load_steps(self.step_filename)
+
+        # this should not raise any error
+        methods_to_call = sorted(methods.values())
         try:
-            pyeature.Loader().load_steps(self.step_filename)
+            [methods[name]() for name in sorted(methods.keys())]
         except:
-            assert False, "exception should not be raised"
+            assert False, 'should not raise error'
 
 
-    def test_loaded_modules_have_self_which_directs_to_global_world(self):
+    def test2_loaded_modules_have_self_which_directs_to_global_world(self):
         ''' [로딩] 로드된 모듈의 self는 global world를 가리킨다 '''
-        #loader = pyeature.Loader()
-        #loader.load_steps(self.step_filename)
-        #assert loader.global_world.value == 3
-        pending(self)
+        loader = pyeature.Loader()
+        methods = loader.load_steps(self.step_filename)
+
+        [methods[name]() for name in sorted(methods.keys())]
+
+        assert loader.global_world.value == 3
 
 
 class LoadDecoratedStepTestCase(LoaderTestCase):
@@ -93,6 +102,6 @@ if __name__ == '__main__':
         testoob.main()
     except ImportError:
         loader = unittest.defaultTestLoader
-        loader.testMethodPrefix = 'test'
+        loader.testMethodPrefix = 'test2'
         unittest.main(testLoader = loader)
 
