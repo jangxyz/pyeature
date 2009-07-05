@@ -11,8 +11,6 @@ import pyeature
 import types
 
 class NotImplemented(Exception): pass
-
-
 def pending(method):
     method_name = method.__class__.__name__
     if '_testMethodName' in dir(method):
@@ -143,10 +141,10 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
         #methods = self.matcher.clause_methods_of(self.module)
         methods = pyeature.Loader().load_steps(self.step_filename)
 
-        for method in methods:
+        for method in methods.values():
             assert isinstance(method, types.FunctionType)
 
-        clause_method_names = [m.__name__ for m in methods]
+        clause_method_names = methods.keys()
         for method_name in [
          'given_i_have_some_text_as_given',
          'when_another_text_for_additional_when', 
@@ -158,9 +156,8 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
         #methods = self.matcher.clause_methods_of(self.module)
         methods = pyeature.Loader().load_steps(self.step_filename)
 
-        loaded_clause_methods = pyeature.Loader.loaded_clauses.values()
-        for m in methods:
-            assert m in loaded_clause_methods
+        loaded_clause_methods = pyeature.Loader.loaded_clauses
+        assert methods == loaded_clause_methods
 
 
     def test_finding_clause_methods_from_list_of_modules(self):
@@ -172,17 +169,15 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
         methods_from_modules = self.matcher.clause_methods_of(modules)
 
         assert len(methods_from_a_module) < len(methods_from_modules)
-        for m in methods_from_a_module:
+        for m in methods_from_a_module.values():
             assert m in methods_from_modules
 
 
     def test_before_and_after_methods(self):
         ''' [매칭] before, after hook 메소드도 인식한다 '''
-        #methods = self.matcher.clause_methods_of(self.module)
-        methods = pyeature.Loader().load_steps(self.step_filename)
-        clause_method_names = [m.__name__ for m in methods]
+        method_names = pyeature.Loader().load_steps(self.step_filename).keys()
 
-        assert "after" in clause_method_names
+        assert "after" in method_names
 
 
     def test_finding_before_hook_from_another_module(self):
@@ -196,31 +191,6 @@ class MatchingClausesWithStepDefinitionsTestCase(unittest.TestCase):
 
         assert "before" in clause_method_names
         assert "after" in clause_method_names
-
-
-class LoaderTestCase(unittest.TestCase):
-    ''' 모듈 로딩 '''
-    def setUp(self):
-        self.step_filename = os.path.join(FILEDIR, 'sample_step.py')
-
-
-    def test_load_methods_from_module(self):
-        ''' [로딩] 모듈로부터 메소드를 로드한다 '''
-        methods = pyeature.Loader().load_steps(self.step_filename)
-        print methods
-
-        for m in methods:
-            assert isinstance(m, types.FunctionType)
-
-
-    def test_loaded_modules_have_self(self):
-        ''' [로딩] 로드된 모듈은 self를 알고 있다 '''
-        pending(self)
-
-    def test_loaded_modules_have_self_which_directs_to_global_world(self):
-        ''' [로딩] 로드된 모듈의 self는 global world를 가리킨다 '''
-        pending(self)
-
 
 
 class RunFeatureTestCase(unittest.TestCase):
@@ -260,21 +230,21 @@ class RunFeatureTestCase(unittest.TestCase):
             assert clause in self.output.getvalue()
 
 
-    def append_clause_method(self, method, name, clause_methods):
+    def append_clause_method(self, method, name):
         ''' add a new method to clause methods, removing if already existed '''
         method.func_name = name
         pyeature.Loader.loaded_clauses[name] = method
-        for m in self.runner.matcher.clause_methods:
-            if m.__name__ == name:
-                self.runner.matcher.clause_methods.remove(m)
-        self.runner.matcher.clause_methods.append(method)
-        clause_methods.append( method )
+        #for m in self.runner.matcher.clause_methods:
+        #    if m.__name__ == name:
+        #        self.runner.matcher.clause_methods.remove(m)
+        #self.runner.matcher.clause_methods.append(method)
+        #clause_methods.append( method )
 
 
     def test_running_clauses_making_exception_does_not_raise_exception(self):
         ''' [실행] 실행 중 익셉션이 나도 예외를 출력만 할 뿐 직접 발생시키진 않는다 '''
         # method should raise NameError
-        self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
+        self.append_clause_method(lambda: y, 'given_another_text_for_additional_given')
 
         self.runner.run_clauses(self.clauses)
 
@@ -285,8 +255,8 @@ class RunFeatureTestCase(unittest.TestCase):
     def test_that_multiple__exceptions_skip_rest_at_first_occurence(self):
         ''' [실행] 예외가 여러 군데에서 나도 첫번째 예외에서 멈춘다 '''
         # methods should raise NameError
-        self.append_clause_method(lambda: y, 'given_another_text_for_additional_given', self.clause_methods)
-        self.append_clause_method(lambda: y, 'when_i_write_when', self.clause_methods)
+        self.append_clause_method(lambda: y, 'given_another_text_for_additional_given')
+        self.append_clause_method(lambda: y, 'when_i_write_when')
         
         self.runner.run_clauses(self.clauses)
 
@@ -297,7 +267,7 @@ class RunFeatureTestCase(unittest.TestCase):
     def test_non_successive_clause_method_should_not_run(self):
         ''' [실행] 정의되지 않은 메소드를 만나면 실행이 멈춘다 '''
         # method should raise NameError
-        self.append_clause_method(lambda: y, 'then_another_then', self.clause_methods)
+        self.append_clause_method(lambda: y, 'then_another_then')
 
         self.runner.run_clauses(self.clauses)
 
@@ -307,15 +277,15 @@ class RunFeatureTestCase(unittest.TestCase):
     def test_that_running_before_methods_should_raise_exception_when_wrong(self):
         ''' [실행] before hook은 실행이 된다 '''
         clause_methods = []
-        self.append_clause_method(lambda: y, 'before', clause_methods)
+        self.append_clause_method(lambda: y, 'before')
         self.assertRaises(NameError, self.runner.run_clauses, self.clauses)
 
 
     def test2_running_after_methods_should_raise_exception_when_wrong(self):
         ''' [실행] after hook은 실행이 된다 '''
         clause_methods = []
-        self.append_clause_method(lambda: y, 'after', clause_methods)
-        self.append_clause_method(lambda: y, 'after2', clause_methods)
+        self.append_clause_method(lambda: y, 'after')
+        self.append_clause_method(lambda: y, 'after2')
         self.assertRaises(NameError, self.runner.run_clauses, self.clauses)
 
 

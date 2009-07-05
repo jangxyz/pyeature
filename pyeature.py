@@ -3,6 +3,7 @@
 
 import re, types, sys, traceback, os
 sys.path.append(os.getcwd())
+import pyeature
 
 ##
 ## Keyword definitions
@@ -21,11 +22,11 @@ EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 ##
 
 
-def given(clause_name):
-    def working_method(method):
-        return method
-    return working_method
+def given(clause): return Loader.step_decoration(GIVEN, clause)
+def when(clause):  return Loader.step_decoration(WHEN,  clause)
+def then(clause):  return Loader.step_decoration(THEN,  clause)
 
+    
 
 def extract(text):
     """ extracts a list of clauses from given text """
@@ -91,11 +92,11 @@ class Loader:
         clause_methods = Matcher.clause_methods_of(modules)
 
         for method in clause_methods:
-            self.loaded_clauses[method.__name__] = method
+            pyeature.Loader.loaded_clauses[method.__name__] = method
 
         sys.path.pop()
 
-        return clause_methods
+        return pyeature.Loader.loaded_clauses
 
 
     def import_modules(self, module_names):
@@ -108,7 +109,12 @@ class Loader:
     def try_importing_module(self, module_name):
         """ try importing a module, catching all exceptions """
         try:
-            new_module = __import__(module_name)
+            if module_name in sys.modules:
+                new_module = __import__(module_name)
+                new_module = reload(new_module)
+            else:
+                new_module = __import__(module_name)
+
             new_module.self = self.global_world
             return new_module
         #except SyntaxError, e:
@@ -133,6 +139,13 @@ class Loader:
         names = list(set(names))
 
         return names
+
+    @staticmethod
+    def step_decoration(step_name, clause):
+        def working_method(method):
+            pyeature.Loader.loaded_clauses[step_name +" "+ clause] = method
+            return method
+        return working_method
 
 
 
@@ -173,18 +186,20 @@ class Matcher:
         return self.previous_clause_name
 
 
-    def find_method_by_name(self, name):
-        for m in self.clause_methods:
-            if m.__name__ == name:
-                return m
-        else:
-            return None
+    def find_method_by_name(self, name, default=None):
+        #for m in self.clause_methods:
+        #    if m.__name__ == name:
+        #        return m
+        #else:
+        #    return default
+        return self.clause_methods.get(name, default)
 
 
     def find_method_by_clause(self, clause):
         ''' find and return apropriate method for the given clause '''
+        clause = clause.strip()
         for c in [clause, self.clause2methodname(clause)]:
-            method = Loader.loaded_clauses.get(c, None)
+            method = pyeature.Loader.loaded_clauses.get(c, None)
             if method:
                 return method
 
@@ -221,6 +236,13 @@ class Matcher:
                 return True
         else:
             return False
+
+
+    @staticmethod
+    def is_feature(line):  return Patterns.feature.match(line) != None
+
+    @staticmethod
+    def is_scenario(line): return Patterns.scenario.match(line) != None
 
 
 class Reporter:
@@ -303,30 +325,21 @@ class Runner:
         self.matcher = Matcher(clause_methods)
         self.reporter = ColorReporter(output)
 
-    @staticmethod
-    def is_feature(line):  return Patterns.feature.match(line) != None
-
-    @staticmethod
-    def is_scenario(line): return Patterns.scenario.match(line) != None
-
     def run_clauses(self, clauses):
         """ given clauses and set of method candidates, 
             run each clause in order and
             write result in output.
             Exceptions will not be raised, but just written to output """
         # run before method
-        before = self.matcher.find_method_by_name('before')
-        if before:
-            before()
+        self.matcher.find_method_by_name('before', default=lambda:None)()
     
-        success_count = 0
-        suggest_methods = []
+        unimplemented = []
         # run until finish or error
         for i,clause in enumerate(clauses):
             if i is not 0: self.reporter.write("\n")
     
             # skip feature and scenario
-            if Runner.is_feature(clause) or Runner.is_scenario(clause):
+            if Matcher.is_feature(clause) or Matcher.is_scenario(clause):
                 self.reporter.report(clause)
                 continue
     
@@ -336,43 +349,40 @@ class Runner:
             # stop if no method found
             if not clause_method:
                 self.reporter.report(clause, "stop")
-                method_name = self.matcher.clause2methodname(clause)
-                suggest_methods.append( method_name )
+                unimplemented.append(clause)
                 break
     
             # run method
             success = self.run_method(clause_method, clause)
             if not success:
                 break
-            success_count += 1
+        success_count = i
         if i is not 0: self.reporter.write("\n")
     
         # run after method
-        after = self.matcher.find_method_by_name('after')
-        if after:
-            after()
+        self.matcher.find_method_by_name('after', default=lambda: None)()
 
 
-        suggest_methods = self.report_remaining_methods(clauses[i+1:], suggest_methods)
-        self.report_suggesting_unimplemented_methods(suggest_methods)
+        unimplemented = self.report_remaining_methods(clauses[i+1:], unimplemented)
+        self.report_suggesting_unimplemented_methods(unimplemented)
 
         return success_count
 
 
-    def report_remaining_methods(self, remaining_clauses, suggest_methods):
+    def report_remaining_methods(self, remaining_clauses, unimplemented):
         for clause in remaining_clauses:
             if self.matcher.find_method_by_clause(clause):
                 self.reporter.report(clause+"\n", "skip")
             else:
                 self.reporter.report(clause+"\n", "stop")
-                method_name = self.matcher.clause2methodname(clause)
-                suggest_methods.append(method_name)
+                unimplemented.append(clause)
         self.reporter.write("\n")
-        return suggest_methods
+        return unimplemented
 
 
-    def report_suggesting_unimplemented_methods(self, methods_to_suggest):
-        if methods_to_suggest:
+    def report_suggesting_unimplemented_methods(self, unimplemented):
+        if unimplemented:
+            methods_to_suggest = [self.matcher.clause2methodname(c) for c in unimplemented]
             method_definitions = ["""def %s():\n\tassert False, "Implement me!"\n""" % m for m in methods_to_suggest]
             suggesting_method_doc = """\nCreate the following method: \n\n%s\n""" % "\n".join(method_definitions)
             self.reporter.report(suggesting_method_doc, "stop")
@@ -391,7 +401,7 @@ class Runner:
     #    #method_name = self.matcher.clause2methodname(clause)
     #    #return self.find_method_by_name(method_name, methods)
     #    for c in [clause, self.matcher.clause2methodname(clause)]:
-    #        method = Loader.loaded_clauses.get(c, None)
+    #        method = pyeature.Loader.loaded_clauses.get(c, None)
     #        if method:
     #            return method
 
