@@ -72,14 +72,6 @@ class LoadDecoratedStepTestCase(LoaderTestCase):
     #    matches_clause_method_name = pyeature.Matcher.is_clause_method_name
     #    assert filter(matches_clause_method_name, clauses.keys()) != []
 
-    def test_accepts_regex_as_key_for_clause(self):
-        ''' [로드] 메소드 이름에 해당하는 정규표현식을 받을 수도 있다 '''
-        clauses = pyeature.Loader().load_steps(self.step_filename)
-
-        f = lambda name: not isinstance(name, types.StringType)
-        leftovers = filter(f, clauses.keys())
-        assert leftovers != []
-
 
 
 if __name__ == '__main__':

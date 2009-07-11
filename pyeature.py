@@ -201,7 +201,7 @@ class Matcher:
             1. clause itself in string
             2. converted method name of the clause in string
         from loaded clauses methods to match the given clause, or
-            3. clause 
+            3. clause matches method name regex
         '''
         clause = clause.strip()
 
@@ -210,18 +210,26 @@ class Matcher:
         #    if method:
         #        return method
 
+        pattern = re.compile("^(%s)\s+" % '|'.join(CLAUSE_NAMES))
         for method_key,method in pyeature.Loader.loaded_clauses.iteritems():
+            # string
             if isinstance(method_key, types.StringType):
                 if method_key == clause:
                     return method
                 if method_key == self.clause2methodname(clause):
                     return method
-            elif isinstance(method_key, Matcher.re_type):
-                if method_key.search(clause):
-                    return method
-                
 
-            
+                if method_key == pattern.sub('', clause):
+                    return method
+            # re
+            elif isinstance(method_key, Matcher.re_type):
+
+                md = method_key.search(clause) or method_key.search(pattern.sub('', clause))
+                if md:
+                    args = [md.group(0)] + list(md.groups())
+                    method.func_globals['args'] = args
+                    return method
+
 
     @staticmethod
     def clause_methods_of(modules):
@@ -475,6 +483,7 @@ def run(feature_file, step_file_dir, output=sys.stdout):
     #clauses = extract(open(feature_file).read())
     clauses = extract_file(feature_file)
     clause_methods = Loader().load_steps(step_file_dir)
+    print clause_methods.keys()
 
     # run clauses
     return Runner(clause_methods, output=output).run_clauses(clauses)

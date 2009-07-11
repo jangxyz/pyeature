@@ -5,9 +5,9 @@ import pyeature, re
 def different_name():
     self.text = "123"
 
-@pyeature.given(re.compile("some another text \"123\""))
+@pyeature.given(re.compile("some another text \"([0-9]+)\""))
 def another_given():
-    self.another_text = "123"
+    self.another_text = args[1]
 
 @pyeature.when('another text for additional when')
 def some_method_for_when():

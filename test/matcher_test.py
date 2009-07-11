@@ -76,28 +76,6 @@ class MatchingClausesWithStepDefinitionsTestCase(LoaderTestCase):
 
 
 
-class MatchingClausesWithRegexTestCase(LoaderTestCase):
-    ''' 모듈의 메소드와 clause를 정규표현식으로 매칭한다 '''
-    def setUp(self):
-        self.step_filename = 'step_with_decoration.py'
-        self.module = __import__(self.step_filename.rsplit('.', 2)[0])
-        self.clauses = [
-                        'Given I have some text "123"',
-                        'And   some another text "123"',
-                        'When another text for additional when',
-                        'Then something happens',
-                       ]
-
-    def test_finds_clause_with_regex(self):
-        ''' [매칭] 정규표현식으로 clause를 찾을 수 있다 '''
-        methods = pyeature.Loader().load_steps(self.step_filename)
-
-        clause = self.clauses[1]
-        method = pyeature.Matcher(methods).find_method_by_clause(clause)
-        assert method.__name__ == 'another_given'
-
-
-
 
 if __name__ == '__main__':
     try:
