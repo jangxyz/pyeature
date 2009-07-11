@@ -1,8 +1,13 @@
-import pyeature
+import pyeature, re
 
-@pyeature.given("I have some text as given")
+@pyeature.given("I have some text \"123\"")
+#@pyeature.given(re.compile("I have some text \"[0-9]\+\""))
 def different_name():
-    pass
+    self.text = "123"
+
+@pyeature.given(re.compile("some another text \"123\""))
+def another_given():
+    self.another_text = "123"
 
 @pyeature.when('another text for additional when')
 def some_method_for_when():

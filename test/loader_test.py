@@ -1,31 +1,9 @@
 #!/usr/bin/python
 # coding: utf-8
-import sys, os
-HOMEDIR = os.path.abspath(os.path.join(os.path.dirname(__file__),os.path.pardir))
-FILEDIR = os.path.abspath(os.path.dirname(__file__))
-RESOURCEDIR = os.path.join(os.path.dirname(__file__), 'resources')
-sys.path += [HOMEDIR, FILEDIR, RESOURCEDIR]
 
-import unittest
-import pyeature
-import types
+from env import *
+import unittest, pyeature
 
-class NotImplemented(Exception): pass
-def pending(method):
-    method_name = method.__class__.__name__
-    if '_testMethodName' in dir(method):
-        method_name += method.__class__.__name__
-    else:
-        method_name += method._TestCase__testMethodName
-    raise NotImplemented("implement [%s]!" % method_name)
-
-
-class LoaderTestCase(unittest.TestCase):
-    def setUp(self):    
-        pyeature.Loader.loaded_clauses = {}
-        pyeature.Loader.global_world = pyeature.World()
-    def tearDown(self): 
-        pyeature.Loader.loaded_clauses = {}
 
 class BasicLoadTestCase(LoaderTestCase):
     ''' 모듈 로딩 '''
@@ -53,7 +31,7 @@ class LoadStepWithSelfTestCase(LoaderTestCase):
         # step file containing 'self.value = 3'
         self.step_filename = os.path.join(FILEDIR, 'step_with_self.py')
 
-    def test2_loaded_modules_have_self(self):
+    def test_loaded_modules_have_self(self):
         ''' [로딩] 로드된 모듈은 self를 알고 있다 '''
         methods = pyeature.Loader().load_steps(self.step_filename)
 
@@ -65,7 +43,7 @@ class LoadStepWithSelfTestCase(LoaderTestCase):
             assert False, 'should not raise error'
 
 
-    def test2_loaded_modules_have_self_which_directs_to_global_world(self):
+    def test_loaded_modules_have_self_which_directs_to_global_world(self):
         ''' [로딩] 로드된 모듈의 self는 global world를 가리킨다 '''
         loader = pyeature.Loader()
         methods = loader.load_steps(self.step_filename)
@@ -86,13 +64,21 @@ class LoadDecoratedStepTestCase(LoaderTestCase):
         clauses = pyeature.Loader().load_steps(self.step_filename)
         assert len(clauses) >= 3
 
-    def test_adds_appropriate_prefix_for_decorated_methods(self):
-        ''' [로드] 메소드 이름 앞에 given을 알릴 수 있는 접두사가 붙는다 '''
+    #def test_adds_appropriate_prefix_for_decorated_methods(self):
+    #    ''' [로드] 메소드 이름 앞에 given을 알릴 수 있는 접두사가 붙는다 '''
+    #    clauses = pyeature.Loader().load_steps(self.step_filename)
+
+    #    print clauses.keys()
+    #    matches_clause_method_name = pyeature.Matcher.is_clause_method_name
+    #    assert filter(matches_clause_method_name, clauses.keys()) != []
+
+    def test_accepts_regex_as_key_for_clause(self):
+        ''' [로드] 메소드 이름에 해당하는 정규표현식을 받을 수도 있다 '''
         clauses = pyeature.Loader().load_steps(self.step_filename)
 
-        f = lambda name: pyeature.GIVEN in name and 'I have some text as given' in name
-        assert filter(f, clauses.keys()) != []
-        #assert 'I have some text as given' in clauses.keys()
+        f = lambda name: not isinstance(name, types.StringType)
+        leftovers = filter(f, clauses.keys())
+        assert leftovers != []
 
 
 
@@ -102,6 +88,7 @@ if __name__ == '__main__':
         testoob.main()
     except ImportError:
         loader = unittest.defaultTestLoader
-        loader.testMethodPrefix = 'test2'
+        loader.testMethodPrefix = 'test'
         unittest.main(testLoader = loader)
+
 

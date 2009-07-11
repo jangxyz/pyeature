@@ -13,19 +13,21 @@
 
 import unittest, sys, os, re
 
+
 def find_all_test_files():
     """ finds files that end with '_test.py', recursively """
     #test_file_pattern = re.compile('^t(est)?_.*\.py$')
     test_file_pattern = re.compile('.*_test\.py$')
-    is_test = lambda filename: test_file_pattern.match(filename)
+    is_test_file = lambda filename: test_file_pattern.match(filename)
     drop_dot_py = lambda filename: filename[:-3]
     join_module = lambda *names: '/'.join(names)
-    #return [drop_dot_py(module) for module in filter(is_test, os.listdir(os.curdir))]
+
     modules = []
     for root, dirs, files in os.walk(os.curdir):
         root_name = os.path.split(root)[-1]
-        for test_file in filter(is_test, files):
-            modules.append(join_module(root_name, drop_dot_py(test_file)))
+        for test_file in filter(is_test_file, files):
+            module = join_module(root_name, drop_dot_py(test_file))
+            modules.append(module)
         #modules += ['.'.join([root_name, drop_dot_py(test_file)]) for test_file in filter(is_test, files)]
     return modules
 
@@ -33,6 +35,10 @@ def find_all_test_files():
 def suite():
     modules_to_test = find_all_test_files()
     print 'Testing', ', '.join(modules_to_test)
+
+    # add to path
+    paths = list(set(map(lambda x: x.rsplit("/", 2)[0], modules_to_test)))
+    sys.path += map(lambda p: os.path.abspath(p), paths)
 
     loader = unittest.TestLoader()
     alltests = unittest.TestSuite()
