@@ -25,7 +25,6 @@ EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 def given(clause): return Loader.step_decoration(GIVEN, clause)
 def when(clause):  return Loader.step_decoration(WHEN,  clause)
 def then(clause):  return Loader.step_decoration(THEN,  clause)
-
     
 
 def extract(text):
@@ -38,20 +37,6 @@ def extract(text):
 def extract_file(filename):
     """ same as extract(), but opens a given filename """
     return extract(open(filename).read())
-
-
-class World:
-    pass
-
-class Patterns:
-    """ patterns used to parse sentence of feature file """
-    template = r'^\s*\b(%s)\b'
-    feature  = re.compile(template % FEATURE,  re.IGNORECASE)
-    scenario = re.compile(template % SCENARIO, re.IGNORECASE)
-    all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
-    every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
-    clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
-    and_clause = re.compile(template % AND, re.IGNORECASE)
 
 
 class Helper:
@@ -67,6 +52,21 @@ class Helper:
     @staticmethod
     def error(msg):
         sys.stderr.write(msg+"\n")
+
+
+class World:
+    pass
+
+class Patterns:
+    """ patterns used to parse sentence of feature file """
+    template = r'^\s*\b(%s)\b'
+    feature  = re.compile(template % FEATURE,  re.IGNORECASE)
+    scenario = re.compile(template % SCENARIO, re.IGNORECASE)
+    all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
+    every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
+    clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
+    and_clause = re.compile(template % AND, re.IGNORECASE)
+
 
 
 class Loader:
@@ -145,13 +145,15 @@ class Loader:
     @staticmethod
     def step_decoration(step_name, clause):
         def working_method(method):
-            pyeature.Loader.loaded_clauses[step_name +" "+ clause] = method
+            #pyeature.Loader.loaded_clauses[step_name +" "+ clause] = method
+            pyeature.Loader.loaded_clauses[clause] = method
             return method
         return working_method
 
 
 
 class Matcher:
+    re_type = type(re.compile(''))
     """ match each sentence with clauses """
     def __init__(self, clause_methods=[]):
         self.previous_clause_name = None
@@ -189,22 +191,37 @@ class Matcher:
 
 
     def find_method_by_name(self, name, default=None):
-        #for m in self.clause_methods:
-        #    if m.__name__ == name:
-        #        return m
-        #else:
-        #    return default
         return self.clause_methods.get(name, default)
 
 
     def find_method_by_clause(self, clause):
-        ''' find and return apropriate method for the given clause '''
+        ''' find and return apropriate method for the given clause 
+        
+        try 
+            1. clause itself in string
+            2. converted method name of the clause in string
+        from loaded clauses methods to match the given clause, or
+            3. clause 
+        '''
         clause = clause.strip()
-        for c in [clause, self.clause2methodname(clause)]:
-            method = pyeature.Loader.loaded_clauses.get(c, None)
-            if method:
-                return method
 
+        #for c in [clause, self.clause2methodname(clause)]:
+        #    method = pyeature.Loader.loaded_clauses.get(c, None)
+        #    if method:
+        #        return method
+
+        for method_key,method in pyeature.Loader.loaded_clauses.iteritems():
+            if isinstance(method_key, types.StringType):
+                if method_key == clause:
+                    return method
+                if method_key == self.clause2methodname(clause):
+                    return method
+            elif isinstance(method_key, Matcher.re_type):
+                if method_key.search(clause):
+                    return method
+                
+
+            
 
     @staticmethod
     def clause_methods_of(modules):
@@ -225,7 +242,27 @@ class Matcher:
         methods = filter(lambda x: Matcher.is_clause_method_name(x.__name__), methods)
 
         return methods
-        
+
+
+    @staticmethod
+    def matches_clause_name(method_name):
+        """ method name can be regex as well as string """
+
+        # string
+        if isinstance(method_name, types.StringType):
+            if method_name in ["before", "after"]:
+                return True 
+            
+            starts_with_clause = lambda c: method_name.startswith("%s_" % c.lower())
+            return not not filter(starts_with_clause, CLAUSE_NAMES)
+        # re
+        elif isinstance(method_name, re_type):
+            if method_name.match("^(before|after)$"):
+                return True
+
+            md = method_name.search(clause)
+            return not not md
+            
 
     @staticmethod
     def is_clause_method_name(method_name):
@@ -335,8 +372,8 @@ class Runner:
         # run before method
         self.matcher.find_method_by_name('before', default=lambda:None)()
     
-        unimplemented = []
         # run until finish or error
+        unimplemented = []
         for i,clause in enumerate(clauses):
             if i is not 0: self.reporter.write("\n")
     
@@ -363,7 +400,6 @@ class Runner:
     
         # run after method
         self.matcher.find_method_by_name('after', default=lambda: None)()
-
 
         unimplemented = self.report_remaining_methods(clauses[i+1:], unimplemented)
         self.report_suggesting_unimplemented_methods(unimplemented)
