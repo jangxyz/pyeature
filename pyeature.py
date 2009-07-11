@@ -205,26 +205,17 @@ class Matcher:
         '''
         clause = clause.strip()
 
-        #for c in [clause, self.clause2methodname(clause)]:
-        #    method = pyeature.Loader.loaded_clauses.get(c, None)
-        #    if method:
-        #        return method
-
         pattern = re.compile("^(%s)\s+" % '|'.join(CLAUSE_NAMES))
+        no_prefix = lambda clause: pattern.sub('', clause)
         for method_key,method in pyeature.Loader.loaded_clauses.iteritems():
             # string
             if isinstance(method_key, types.StringType):
-                if method_key == clause:
-                    return method
-                if method_key == self.clause2methodname(clause):
-                    return method
-
-                if method_key == pattern.sub('', clause):
+                if method_key in [clause, self.clause2methodname(clause), no_prefix(clause)]:
                     return method
             # re
             elif isinstance(method_key, Matcher.re_type):
 
-                md = method_key.search(clause) or method_key.search(pattern.sub('', clause))
+                md = method_key.search(clause) or method_key.search(no_prefix(clause))
                 if md:
                     args = [md.group(0)] + list(md.groups())
                     method.func_globals['args'] = args
@@ -483,7 +474,6 @@ def run(feature_file, step_file_dir, output=sys.stdout):
     #clauses = extract(open(feature_file).read())
     clauses = extract_file(feature_file)
     clause_methods = Loader().load_steps(step_file_dir)
-    print clause_methods.keys()
 
     # run clauses
     return Runner(clause_methods, output=output).run_clauses(clauses)
