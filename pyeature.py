@@ -12,8 +12,8 @@ FEATURE  = 'Feature'
 SCENARIO = 'Scenario'
 
 # These are called clauses. 'And' is an additional clause that continues the previous clause
-GIVEN, WHEN, THEN = 'Given', 'When', 'Then'
-AND = 'And'
+_GIVEN, _WHEN, _THEN, _AND = 'Given', 'When', 'Then', 'And'
+GIVEN, WHEN, THEN, AND = '처음에', '만약', '그러면', '그리고'
 
 CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
 ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
@@ -26,18 +26,6 @@ def given(clause): return Loader.step_decoration(GIVEN, clause)
 def when(clause):  return Loader.step_decoration(WHEN,  clause)
 def then(clause):  return Loader.step_decoration(THEN,  clause)
     
-
-def extract(text):
-    """ extracts a list of clauses from given text """
-    extracts = [line.rstrip("\n") for line in text.split("\n")]
-    #extracts = filter(lambda line: Patterns.all_clauses.match(line), extracts)
-    extracts = filter(lambda line: Patterns.every_keywords.match(line), extracts)
-    return extracts
-
-def extract_file(filename):
-    """ same as extract(), but opens a given filename """
-    return extract(open(filename).read())
-
 
 class Helper:
     @staticmethod
@@ -59,7 +47,7 @@ class World:
 
 class Patterns:
     """ patterns used to parse sentence of feature file """
-    template = r'^\s*\b(%s)\b'
+    template = r'^\s*(%s)'
     feature  = re.compile(template % FEATURE,  re.IGNORECASE)
     scenario = re.compile(template % SCENARIO, re.IGNORECASE)
     all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
@@ -167,11 +155,12 @@ class Matcher:
                   => 'then_i_have_then_some_sp3c_al_characters_'
         """
         clause_name = self.clause_name_of(clause)
-        if not clause_name:
-            return None
+        if not clause_name: return
     
+        # change prefix of clause 
         clause = Patterns.and_clause.sub(clause_name, clause)
-        return re.sub(r'\W+', '_', clause.lstrip()).lower()
+        convert_space = lambda c: re.sub(r'\W+', '_', c.lstrip()).lower()
+        return convert_space(clause)
     
 
     def clause_name_of(self, sentence):
@@ -181,11 +170,11 @@ class Matcher:
                 anything else   => None
         """
         matched = Patterns.clauses.match(sentence)
+        # store as previous clause name when Given|When|Then
         if matched: 
-            # store as previous clause name when Given|When|Then
-            self.previous_clause_name = matched.group()
+            self.previous_clause_name = matched.group().lstrip()
+        # None if it isn't And clause
         elif not Patterns.and_clause.match(sentence):
-            # None if it isn't And clause
             return
         return self.previous_clause_name
 
@@ -195,7 +184,7 @@ class Matcher:
 
 
     def find_method_by_clause(self, clause):
-        ''' find and return apropriate method for the given clause 
+        ''' find and return appropriate method for the given clause 
         
         try 
             1. clause itself in string
@@ -210,7 +199,8 @@ class Matcher:
         for method_key,method in pyeature.Loader.loaded_clauses.iteritems():
             # string
             if isinstance(method_key, types.StringType):
-                if method_key in [clause, self.clause2methodname(clause), no_prefix(clause)]:
+                any_chances = [clause, self.clause2methodname(clause), no_prefix(clause)]
+                if method_key in any_chances:
                     return method
             # re
             elif isinstance(method_key, Matcher.re_type):
@@ -243,24 +233,24 @@ class Matcher:
         return methods
 
 
-    @staticmethod
-    def matches_clause_name(method_name):
-        """ method name can be regex as well as string """
+    #@staticmethod
+    #def matches_clause_name(method_name):
+    #    """ method name can be regex as well as string """
 
-        # string
-        if isinstance(method_name, types.StringType):
-            if method_name in ["before", "after"]:
-                return True 
-            
-            starts_with_clause = lambda c: method_name.startswith("%s_" % c.lower())
-            return not not filter(starts_with_clause, CLAUSE_NAMES)
-        # re
-        elif isinstance(method_name, re_type):
-            if method_name.match("^(before|after)$"):
-                return True
+    #    # string
+    #    if isinstance(method_name, types.StringType):
+    #        if method_name in ["before", "after"]:
+    #            return True 
+    #        
+    #        starts_with_clause = lambda c: method_name.startswith("%s_" % c.lower())
+    #        return not not filter(starts_with_clause, CLAUSE_NAMES)
+    #    # re
+    #    elif isinstance(method_name, re_type):
+    #        if method_name.match("^(before|after)$"):
+    #            return True
 
-            md = method_name.search(clause)
-            return not not md
+    #        md = method_name.search(clause)
+    #        return not not md
             
 
     @staticmethod
@@ -372,7 +362,7 @@ class Runner:
         self.matcher.find_method_by_name('before', default=lambda:None)()
     
         # run until finish or error
-        unimplemented = []
+        unimplemented, i = [], 0
         for i,clause in enumerate(clauses):
             if i is not 0: self.reporter.write("\n")
     
@@ -425,32 +415,6 @@ class Runner:
             self.reporter.report(suggesting_method_doc, "stop")
 
 
-    #def find_method_by_name(self, name, methods):
-    #    for m in methods:
-    #        if m.__name__ == name:
-    #            return m
-    #    else:
-    #        return None
-
-
-    #def find_method_by_clause(self, clause, methods):
-    #    ''' find and return apropriate method for the given clause '''
-    #    #method_name = self.matcher.clause2methodname(clause)
-    #    #return self.find_method_by_name(method_name, methods)
-    #    for c in [clause, self.matcher.clause2methodname(clause)]:
-    #        method = pyeature.Loader.loaded_clauses.get(c, None)
-    #        if method:
-    #            return method
-
-
-    #def find_and_call_method_by_name(self, name, methods):
-    #    ''' run a method that matches the exact name '''
-    #    m = self.matcher.find_method_by_name(name)
-    #    if m: 
-    #        m()
-    #    return not not m
-
-
     def run_method(self, method, clause):
         """ run a clause with method given, and report result to output """
         try:
@@ -461,6 +425,16 @@ class Runner:
         else:
             self.reporter.report(clause, "success")
             return True
+
+
+def extract(text):
+    """ extracts a list of clauses from given text """
+    extracts = [line.rstrip("\n") for line in text.split("\n")]
+    #extracts = filter(lambda line: Patterns.all_clauses.match(line), extracts)
+    extracts = filter(lambda line: Patterns.every_keywords.match(line), extracts)
+    return extracts
+
+def extract_file(filename): return extract(open(filename).read())
 
 
 
