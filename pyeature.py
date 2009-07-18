@@ -3,6 +3,8 @@
 
 import re, types, sys, traceback, os
 sys.path.append(os.getcwd())
+from optparse import OptionParser
+
 import pyeature
 
 ##
@@ -12,8 +14,8 @@ FEATURE  = 'Feature'
 SCENARIO = 'Scenario'
 
 # These are called clauses. 'And' is an additional clause that continues the previous clause
-_GIVEN, _WHEN, _THEN, _AND = 'Given', 'When', 'Then', 'And'
-GIVEN, WHEN, THEN, AND = '처음에', '만약', '그러면', '그리고'
+GIVEN, WHEN, THEN, AND = 'Given', 'When', 'Then', 'And'
+#GIVEN, WHEN, THEN, AND = '처음에', '만약', '그러면', '그리고'
 
 CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
 ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
@@ -437,15 +439,12 @@ def extract(text):
 def extract_file(filename): return extract(open(filename).read())
 
 
-
-
-def run(feature_file, step_file_dir, output=sys.stdout):
+def run(feature_file, step_file_dir, options, output=sys.stdout):
     """ default method for pyeature: run given feature file with given step file(or directory)
     
     returns number of successful steps ran
     """
     # load clauses from feature and methods from step definition
-    #clauses = extract(open(feature_file).read())
     clauses = extract_file(feature_file)
     clause_methods = Loader().load_steps(step_file_dir)
 
@@ -453,23 +452,53 @@ def run(feature_file, step_file_dir, output=sys.stdout):
     return Runner(clause_methods, output=output).run_clauses(clauses)
 
 
-if __name__ == '__main__':
-    try:
-        feature_file = sys.argv[1]
-        if len(sys.argv) >= 3:
-            step_definition_directory = sys.argv[2]
-        else:
-            dirname = os.path.dirname(os.path.abspath(feature_file))
-            step_definition_directory = os.path.join( dirname, 'step_definitions' )
-            if not os.path.isdir(step_definition_directory):
-                raise Exception
-    except:
-        prog_name = sys.argv[0].rsplit(os.sep, 1)[-1]
-        sys.exit("""You must tell me the feature file and step definition file.
+def parse_args():
+    # set options to parse
+    usage = "usage: %prog [options] some.feature [some_step.py]"
+    parser = OptionParser(usage=usage)
+    parser.add_option("-q", "--quiet", dest="quiet", action="store_true", default=False, help="be quite, and only return 0 or some other value that indicates whether all test ran successfully or not")
+    parser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help="be more verbose, and print additional information while running")
+    parser.add_option("-l", "--language", metavar="FILE", dest="language")
 
-    Usage: %s some.feature some_step.py
-        """ % prog_name)
+    # parse options
+    (options, args) = parser.parse_args()
+
+    # parse rest of arguments
+    if len(args) < 1:
+        parser.error("You must tell me the feature file and step definition file.")
+
+    feature_file = args[0]
+    if len(args) >= 2:
+        step_definition_directory = args[1]
+    else:
+        dirname = os.path.dirname(os.path.abspath(feature_file))
+        step_definition_directory = os.path.join( dirname, 'step_definitions' )
+        if not os.path.isdir(step_definition_directory):
+            raise Exception
+
+    return feature_file, step_definition_directory, options
+
+
+
+if __name__ == '__main__':
+            
+#    try:
+#        feature_file = sys.argv[1]
+#        if len(sys.argv) >= 3:
+#            step_definition_directory = sys.argv[2]
+#        else:
+#            dirname = os.path.dirname(os.path.abspath(feature_file))
+#            step_definition_directory = os.path.join( dirname, 'step_definitions' )
+#            if not os.path.isdir(step_definition_directory):
+#                raise Exception
+#    except:
+#        prog_name = sys.argv[0].rsplit(os.sep, 1)[-1]
+#        sys.exit("""You must tell me the feature file and step definition file.
+#
+#    Usage: %s some.feature some_step.py
+#        """ % prog_name)
 
     # run
-    run(sys.argv[1], step_definition_directory)
+    feature_file, step_definition_directory, options = parse_args()
+    run(feature_file, step_definition_directory, options)
 
