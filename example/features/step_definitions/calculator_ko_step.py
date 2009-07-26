@@ -16,7 +16,7 @@ def enter_number():
     num = args[1]
     self.calc.append(int(num))
 
-@pyeature.when("더하기를 누르면")
+@pyeature.when("내가 더하기를 누르면")
 def when_i_press_add():
     self.result = self.calc.add()
 
