@@ -1,4 +1,3 @@
-
 import sys, os
 HOMEDIR = os.path.abspath(os.path.join(os.path.dirname(__file__),os.path.pardir))
 FILEDIR = os.path.abspath(os.path.dirname(__file__))

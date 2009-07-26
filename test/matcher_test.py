@@ -78,13 +78,4 @@ class MatchingClausesWithStepDefinitionsTestCase(LoaderTestCase):
 
 
 if __name__ == '__main__':
-    try:
-        import testoob
-        testoob.main()
-    except ImportError:
-        loader = unittest.defaultTestLoader
-        loader.testMethodPrefix = 'test'
-        unittest.main(testLoader = loader)
-
-
-
+    run_test()
