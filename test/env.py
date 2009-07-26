@@ -25,3 +25,12 @@ class LoaderTestCase(unittest.TestCase):
         pyeature.Loader.loaded_clauses = {}
 
 
+def run_test(prefix='test'):
+    try:
+        import testoob
+        testoob.main()
+    except ImportError:
+        loader = unittest.defaultTestLoader
+        loader.testMethodPrefix = prefix
+        unittest.main(testLoader = loader)
+

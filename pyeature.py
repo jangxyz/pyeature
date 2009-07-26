@@ -13,21 +13,32 @@ import pyeature
 FEATURE  = 'Feature'
 SCENARIO = 'Scenario'
 
+#lang = {
+#    'en': { 'given': 'Given', 'when': 'When', 'then': 'Then', 'and': 'And', }
+#    'ko': {
+#        'given': '처음에',
+#        'when': '만약',
+#        'then': '그러면',
+#        'and': ['그리고', '또'],
+#    }
+#}
+
 # These are called clauses. 'And' is an additional clause that continues the previous clause
+_GIVEN, _WHEN, _THEN, _AND = 'Given', 'When', 'Then', 'And'
 GIVEN, WHEN, THEN, AND = 'Given', 'When', 'Then', 'And'
 #GIVEN, WHEN, THEN, AND = '처음에', '만약', '그러면', '그리고'
 
 CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
 ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
-EVERY_KEYWORDS = [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
+EVERY_KEYWORDS =   [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 ##
 ##
 
 
-def given(clause): return Loader.step_decoration(GIVEN, clause)
-def when(clause):  return Loader.step_decoration(WHEN,  clause)
-def then(clause):  return Loader.step_decoration(THEN,  clause)
-    
+def given(clause): return Loader.step_decoration(_GIVEN, clause)
+def when(clause):  return Loader.step_decoration(_WHEN,  clause)
+def then(clause):  return Loader.step_decoration(_THEN,  clause)
+
 
 class Helper:
     @staticmethod
@@ -43,20 +54,39 @@ class Helper:
     def error(msg):
         sys.stderr.write(msg+"\n")
 
+class World: pass
 
-class World:
-    pass
 
 class Patterns:
     """ patterns used to parse sentence of feature file """
     template = r'^\s*(%s)'
     feature  = re.compile(template % FEATURE,  re.IGNORECASE)
     scenario = re.compile(template % SCENARIO, re.IGNORECASE)
-    all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
+    #all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
     every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
     clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
     and_clause = re.compile(template % AND, re.IGNORECASE)
 
+    #
+    starts_with_clause_name = re.compile("^(%s)\s+" % '|'.join(CLAUSE_NAMES))
+    @staticmethod
+    def remove_clause_name_prefix(clause):
+        return Patterns.starts_with_clause_name.sub('', clause)
+
+    @staticmethod
+    def change_and_clause_name(clause, new_clause_name):
+        return Patterns.and_clause.sub(new_clause_name, clause)
+
+    @staticmethod
+    def is_scenario(line): return Patterns.scenario.match(line) != None
+    @staticmethod
+    def is_feature(line):  return Patterns.feature.match(line) != None
+    @staticmethod
+    def is_any_keyword(line): return Patterns.every_keywords.match(line) != None
+    @staticmethod
+    def match_clause(line): return Patterns.clauses.match(line)
+    @staticmethod
+    def is_and_clause(line): return Patterns.and_clause.match(line) != None
 
 
 class Loader:
@@ -135,7 +165,6 @@ class Loader:
     @staticmethod
     def step_decoration(step_name, clause):
         def working_method(method):
-            #pyeature.Loader.loaded_clauses[step_name +" "+ clause] = method
             pyeature.Loader.loaded_clauses[clause] = method
             return method
         return working_method
@@ -156,29 +185,30 @@ class Matcher:
               - 'Then I have then	some sp3c!al,, characters?!'
                   => 'then_i_have_then_some_sp3c_al_characters_'
         """
-        clause_name = self.clause_name_of(clause)
+
+        def clause_name_of(sentence):
+            """  return clause name of sentence, if it is a clause (None if not)
+                    Given|When|Then => itself
+                    And             => previous clause name
+                    anything else   => None
+            """
+            matched = Patterns.match_clause(sentence)
+            # store as previous clause name when Given|When|Then
+            if matched: 
+                self.previous_clause_name = matched.group().lstrip()
+            # None if it isn't And clause
+            elif not Patterns.is_and_clause(sentence):
+                return
+            return self.previous_clause_name
+
+        clause_name = clause_name_of(clause)
         if not clause_name: return
     
         # change prefix of clause 
-        clause = Patterns.and_clause.sub(clause_name, clause)
+        clause = Patterns.change_and_clause_name(clause, clause_name)
         convert_space = lambda c: re.sub(r'\W+', '_', c.lstrip()).lower()
         return convert_space(clause)
-    
 
-    def clause_name_of(self, sentence):
-        """  return clause name of sentence, if it is a clause (None if not)
-                Given|When|Then => itself
-                And             => previous clause name
-                anything else   => None
-        """
-        matched = Patterns.clauses.match(sentence)
-        # store as previous clause name when Given|When|Then
-        if matched: 
-            self.previous_clause_name = matched.group().lstrip()
-        # None if it isn't And clause
-        elif not Patterns.and_clause.match(sentence):
-            return
-        return self.previous_clause_name
 
 
     def find_method_by_name(self, name, default=None):
@@ -188,29 +218,30 @@ class Matcher:
     def find_method_by_clause(self, clause):
         ''' find and return appropriate method for the given clause 
         
-        try 
-            1. clause itself in string
-            2. converted method name of the clause in string
-        from loaded clauses methods to match the given clause, or
-            3. clause matches method name regex
+        for every keys registered in loaded_clauses, try matching
+            1. the clause itself as string
+            2. the clause converted into method name
+            3. the clause without clause prefix
+            4. the clause as regex
+            #5. the clause without clause prefix as regex
         '''
         clause = clause.strip()
+        #print clause
 
-        pattern = re.compile("^(%s)\s+" % '|'.join(CLAUSE_NAMES))
-        no_prefix = lambda clause: pattern.sub('', clause)
         for method_key,method in pyeature.Loader.loaded_clauses.iteritems():
+            clause_wo_prefix = Patterns.remove_clause_name_prefix(clause)
             # string
             if isinstance(method_key, types.StringType):
-                any_chances = [clause, self.clause2methodname(clause), no_prefix(clause)]
+                any_chances = [clause, self.clause2methodname(clause), clause_wo_prefix]
                 if method_key in any_chances:
                     return method
             # re
             elif isinstance(method_key, Matcher.re_type):
 
-                md = method_key.search(clause) or method_key.search(no_prefix(clause))
+                md = method_key.search(clause) or method_key.search(clause_wo_prefix)
                 if md:
                     args = [md.group(0)] + list(md.groups())
-                    method.func_globals['args'] = args
+                    method.func_globals['args'] = args # 
                     return method
 
 
@@ -235,44 +266,19 @@ class Matcher:
         return methods
 
 
-    #@staticmethod
-    #def matches_clause_name(method_name):
-    #    """ method name can be regex as well as string """
-
-    #    # string
-    #    if isinstance(method_name, types.StringType):
-    #        if method_name in ["before", "after"]:
-    #            return True 
-    #        
-    #        starts_with_clause = lambda c: method_name.startswith("%s_" % c.lower())
-    #        return not not filter(starts_with_clause, CLAUSE_NAMES)
-    #    # re
-    #    elif isinstance(method_name, re_type):
-    #        if method_name.match("^(before|after)$"):
-    #            return True
-
-    #        md = method_name.search(clause)
-    #        return not not md
-            
-
     @staticmethod
     def is_clause_method_name(method_name):
         """ returns true if method name starts with given_, when_, or then_,
                       or if is before or after """
         if method_name in ["before", "after"]:
             return True 
-        for c in CLAUSE_NAMES:
-            if method_name.startswith( "%s_" % c.lower() ):
-                return True
-        else:
-            return False
 
+        valid_format = lambda c: method_name.startswith("%s_" % c.lower())
+        valids = filter(valid_format, [_GIVEN, _WHEN, _THEN])
+        return not not valids # False if []
 
-    @staticmethod
-    def is_feature(line):  return Patterns.feature.match(line) != None
-
-    @staticmethod
-    def is_scenario(line): return Patterns.scenario.match(line) != None
+    is_feature  = staticmethod(Patterns.is_feature)
+    is_scenario = staticmethod(Patterns.is_scenario)
 
 
 class Reporter:
@@ -374,6 +380,7 @@ class Runner:
                 continue
     
             # find method for clause
+            #print 1
             clause_method = self.matcher.find_method_by_clause(clause)
     
             # stop if no method found
@@ -400,6 +407,7 @@ class Runner:
 
     def report_remaining_methods(self, remaining_clauses, unimplemented):
         for clause in remaining_clauses:
+            #print 2
             if self.matcher.find_method_by_clause(clause):
                 self.reporter.report(clause+"\n", "skip")
             else:
@@ -432,8 +440,7 @@ class Runner:
 def extract(text):
     """ extracts a list of clauses from given text """
     extracts = [line.rstrip("\n") for line in text.split("\n")]
-    #extracts = filter(lambda line: Patterns.all_clauses.match(line), extracts)
-    extracts = filter(lambda line: Patterns.every_keywords.match(line), extracts)
+    extracts = filter(Patterns.is_any_keyword, extracts)
     return extracts
 
 def extract_file(filename): return extract(open(filename).read())
@@ -458,12 +465,11 @@ def parse_args():
     parser = OptionParser(usage=usage)
     parser.add_option("-q", "--quiet", dest="quiet", action="store_true", default=False, help="be quite, and only return 0 or some other value that indicates whether all test ran successfully or not")
     parser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help="be more verbose, and print additional information while running")
-    parser.add_option("-l", "--language", metavar="FILE", dest="language")
+    parser.add_option("-l", "--language", metavar="LANG", dest="language", default='en', help="target language to parse (default en)")
 
-    # parse options
     (options, args) = parser.parse_args()
 
-    # parse rest of arguments
+    # rest of arguments
     if len(args) < 1:
         parser.error("You must tell me the feature file and step definition file.")
 
@@ -498,7 +504,6 @@ if __name__ == '__main__':
 #    Usage: %s some.feature some_step.py
 #        """ % prog_name)
 
-    # run
     feature_file, step_definition_directory, options = parse_args()
     run(feature_file, step_definition_directory, options)
 

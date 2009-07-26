@@ -11,7 +11,7 @@ import calculator
 def before():
     self.calc = calculator.Calculator()
 
-@pyeature.given(re.compile("계산기에 ([0-9]+)(을|를) 입력하"))
+@pyeature.given(re.compile("계산기에 ([0-9]+)(을|를) 입력"))
 def enter_number():
     num = args[1]
     self.calc.append(int(num))

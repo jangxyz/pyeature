@@ -1,16 +1,13 @@
 import sys, os
 sys.path.append(os.getcwd())
-import pyeature
-
-import re
+import pyeature, re
 
 import calculator
 
 def before():
     self.calc = calculator.Calculator()
 
-
-@pyeature.given(re.compile("I have entered ([0-9]+) into the calculator"))
+@pyeature.given(re.compile("^I have entered ([0-9]+) into the calculator"))
 def enter_number():
     num = args[1]
     self.calc.append(int(num))
