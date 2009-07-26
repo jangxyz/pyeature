@@ -146,11 +146,6 @@ class RunSampleFeatureTestCase(unittest.TestCase):
         ''' add a new method to clause methods, removing if already existed '''
         method.func_name = name
         pyeature.Loader.loaded_clauses[name] = method
-        #for m in self.runner.matcher.clause_methods:
-        #    if m.__name__ == name:
-        #        self.runner.matcher.clause_methods.remove(m)
-        #self.runner.matcher.clause_methods.append(method)
-        #clause_methods.append( method )
 
 
     def test_running_clauses_making_exception_does_not_raise_exception(self):
@@ -203,29 +198,23 @@ class RunSampleFeatureTestCase(unittest.TestCase):
 
     def test_run_with_a_step_definition_file(self):
         ''' [실행] step 정의 파일이 주어지면 실행한다 '''
-        pyeature.run(self.sample_filename, self.step_filename, self.output)
+        pyeature.run(self.sample_filename, self.step_filename, {}, self.output)
 
 
     def test_run_returns_successful_steps(self):
         ''' [실행] 성공적으로 실행한 step의 수를 리턴한다 '''
-        num = pyeature.run(self.sample_filename, self.step_filename, self.output)
+        num = pyeature.run(self.sample_filename, self.step_filename, {}, self.output)
         assert num == 1
 
     def test_run_with_step_definition_directory(self):
         ''' [실행] step 정의 파일이 있는 디렉토리를 주면 실행한다 '''
-        file_run  = pyeature.run(self.sample_filename, self.step_filename, self.output)
+        file_run  = pyeature.run(self.sample_filename, self.step_filename, {}, self.output)
         directory = os.path.dirname(os.path.abspath(self.step_filename))
-        directory_run = pyeature.run(self.sample_filename, directory, self.output)
+        directory_run = pyeature.run(self.sample_filename, directory, {}, self.output)
         assert file_run == directory_run
 
 
 
 if __name__ == '__main__':
-    try:
-        import testoob
-        testoob.main()
-    except ImportError:
-        loader = unittest.defaultTestLoader
-        loader.testMethodPrefix = 'test'
-        unittest.main(testLoader = loader)
+    run_test()
 
