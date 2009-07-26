@@ -10,34 +10,23 @@ import pyeature
 ##
 ## Keyword definitions
 ##
-FEATURE  = 'Feature'
-SCENARIO = 'Scenario'
 
-#lang = {
-#    'en': { 'given': 'Given', 'when': 'When', 'then': 'Then', 'and': 'And', }
-#    'ko': {
-#        'given': '처음에',
-#        'when': '만약',
-#        'then': '그러면',
-#        'and': ['그리고', '또'],
-#    }
-#}
+lang = {
+    'en': { 
+        'feature': 'Feature', 'scenario': 'Scenario',
+        'given': 'Given', 'when': 'When', 'then': 'Then', 'and': 'And', 
+    },
+    'ko': {
+        'given': '처음에',
+        'when': '만약',
+        'then': '그러면',
+        'and': ['그리고', '또'],
+    },
+}
 
-# These are called clauses. 'And' is an additional clause that continues the previous clause
-_GIVEN, _WHEN, _THEN, _AND = 'Given', 'When', 'Then', 'And'
-GIVEN, WHEN, THEN, AND = 'Given', 'When', 'Then', 'And'
-#GIVEN, WHEN, THEN, AND = '처음에', '만약', '그러면', '그리고'
-
-CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
-ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
-EVERY_KEYWORDS =   [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 ##
 ##
 
-
-def given(clause): return Loader.step_decoration(_GIVEN, clause)
-def when(clause):  return Loader.step_decoration(_WHEN,  clause)
-def then(clause):  return Loader.step_decoration(_THEN,  clause)
 
 
 class Helper:
@@ -57,36 +46,55 @@ class Helper:
 class World: pass
 
 
+_FEATURE, _SCENARIO  = 'Feature', 'Scenario'
+_GIVEN, _WHEN, _THEN, _AND = 'Given', 'When', 'Then', 'And'
 class Patterns:
     """ patterns used to parse sentence of feature file """
-    template = r'^\s*(%s)'
-    feature  = re.compile(template % FEATURE,  re.IGNORECASE)
-    scenario = re.compile(template % SCENARIO, re.IGNORECASE)
-    #all_clauses = re.compile(template % '|'.join(ALL_CLAUSE_NAMES), re.IGNORECASE)
-    every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
-    clauses    = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
-    and_clause = re.compile(template % AND, re.IGNORECASE)
+    def __init__(self, keyword_dict={}):
+        default_dict = { 
+            'feature': _FEATURE, 'scenario': _SCENARIO,
+            'given': _GIVEN, 'when': _WHEN, 'then': _THEN, 'and': _AND, 
+        }
+        default_dict.update(keyword_dict)
+        keyword_dict = default_dict
 
-    #
-    starts_with_clause_name = re.compile("^(%s)\s+" % '|'.join(CLAUSE_NAMES))
-    @staticmethod
-    def remove_clause_name_prefix(clause):
-        return Patterns.starts_with_clause_name.sub('', clause)
+        # set base patterns
+        FEATURE, SCENARIO, GIVEN, WHEN, THEN, AND = [keyword_dict[k] for k in ['feature', 'scenario', 'given', 'when', 'then', 'and']]
+        
 
-    @staticmethod
-    def change_and_clause_name(clause, new_clause_name):
-        return Patterns.and_clause.sub(new_clause_name, clause)
+        # set rest of patterns
+        CLAUSE_NAMES     = [GIVEN, WHEN, THEN]
+        ALL_CLAUSE_NAMES = [GIVEN, WHEN, THEN, AND]
+        EVERY_KEYWORDS =   [FEATURE, SCENARIO, AND] + CLAUSE_NAMES
 
-    @staticmethod
-    def is_scenario(line): return Patterns.scenario.match(line) != None
-    @staticmethod
-    def is_feature(line):  return Patterns.feature.match(line) != None
-    @staticmethod
-    def is_any_keyword(line): return Patterns.every_keywords.match(line) != None
-    @staticmethod
-    def match_clause(line): return Patterns.clauses.match(line)
-    @staticmethod
-    def is_and_clause(line): return Patterns.and_clause.match(line) != None
+        template = r'^\s*(%s)'
+        self.feature  = re.compile(template % FEATURE,  re.IGNORECASE)
+        self.scenario = re.compile(template % SCENARIO, re.IGNORECASE)
+        self.every_keywords = re.compile(template % '|'.join(EVERY_KEYWORDS), re.IGNORECASE)
+        self.clauses = re.compile(template % '|'.join(CLAUSE_NAMES), re.IGNORECASE)
+        self.and_clause = re.compile(template % AND, re.IGNORECASE)
+        self.starts_with_clause_name = re.compile("^(%s)\s+" % '|'.join(CLAUSE_NAMES))
+
+        
+
+    def remove_clause_name_prefix(self, clause):
+        """ "Given that I did ..." => "that I did ..." """
+        return self.starts_with_clause_name.sub('', clause)
+
+    def change_and_clause_name(self, clause, new_clause_name):
+        """ "Given ...\nAnd something" => "Given something" """
+        return self.and_clause.sub(new_clause_name, clause)
+
+    def is_scenario(self, line):    return self.scenario.match(line)   != None
+    def is_feature(self, line):     return self.feature.match(line)    != None
+    def is_any_keyword(self, line): return self.every_keywords.match(line) != None
+    def match_clause(self, line):   return self.clauses.match(line)
+    def is_and_clause(self, line):  return self.and_clause.match(line) != None
+
+
+def given(clause): return Loader.step_decoration(_GIVEN, clause)
+def when(clause):  return Loader.step_decoration(_WHEN,  clause)
+def then(clause):  return Loader.step_decoration(_THEN,  clause)
 
 
 class Loader:
@@ -133,15 +141,10 @@ class Loader:
                 new_module = __import__(module_name)
                 new_module = reload(new_module)
             else:
-                #print '- globals:', globals().keys()
-                #print '- locals:',  locals().keys()
                 new_module = __import__(module_name)
 
             new_module.self = self.global_world
             return new_module
-        #except SyntaxError, e:
-        #    Helper.error("%s:%s: %s" % (e.filename, e.lineno, e.msg))
-        #    raise e
         except ImportError, e:
             Helper.error("%s: failed to load %s" % (str(e), module_name) )
         except ValueError, e:
@@ -177,6 +180,7 @@ class Matcher:
     def __init__(self, clause_methods=[]):
         self.previous_clause_name = None
         self.clause_methods = clause_methods
+        self.patterns = Patterns()
 
     def clause2methodname(self, clause):
         """ convert a clause sentence into a method name
@@ -192,12 +196,12 @@ class Matcher:
                     And             => previous clause name
                     anything else   => None
             """
-            matched = Patterns.match_clause(sentence)
+            matched = self.patterns.match_clause(sentence)
             # store as previous clause name when Given|When|Then
             if matched: 
                 self.previous_clause_name = matched.group().lstrip()
             # None if it isn't And clause
-            elif not Patterns.is_and_clause(sentence):
+            elif not self.patterns.is_and_clause(sentence):
                 return
             return self.previous_clause_name
 
@@ -205,7 +209,7 @@ class Matcher:
         if not clause_name: return
     
         # change prefix of clause 
-        clause = Patterns.change_and_clause_name(clause, clause_name)
+        clause = self.patterns.change_and_clause_name(clause, clause_name)
         convert_space = lambda c: re.sub(r'\W+', '_', c.lstrip()).lower()
         return convert_space(clause)
 
@@ -229,7 +233,7 @@ class Matcher:
         #print clause
 
         for method_key,method in pyeature.Loader.loaded_clauses.iteritems():
-            clause_wo_prefix = Patterns.remove_clause_name_prefix(clause)
+            clause_wo_prefix = self.patterns.remove_clause_name_prefix(clause)
             # string
             if isinstance(method_key, types.StringType):
                 any_chances = [clause, self.clause2methodname(clause), clause_wo_prefix]
@@ -277,8 +281,8 @@ class Matcher:
         valids = filter(valid_format, [_GIVEN, _WHEN, _THEN])
         return not not valids # False if []
 
-    is_feature  = staticmethod(Patterns.is_feature)
-    is_scenario = staticmethod(Patterns.is_scenario)
+    def is_feature(self, clause):  return self.patterns.is_feature(clause)
+    def is_scenario(self, clause): return self.patterns.is_scenario(clause)
 
 
 class Reporter:
@@ -375,7 +379,7 @@ class Runner:
             if i is not 0: self.reporter.write("\n")
     
             # skip feature and scenario
-            if Matcher.is_feature(clause) or Matcher.is_scenario(clause):
+            if self.matcher.is_feature(clause) or self.matcher.is_scenario(clause):
                 self.reporter.report(clause)
                 continue
     
@@ -437,13 +441,15 @@ class Runner:
             return True
 
 
-def extract(text):
+def extract(text, keyword_dict={}):
     """ extracts a list of clauses from given text """
     extracts = [line.rstrip("\n") for line in text.split("\n")]
-    extracts = filter(Patterns.is_any_keyword, extracts)
+    extracts = filter(Patterns(keyword_dict).is_any_keyword, extracts)
     return extracts
 
-def extract_file(filename): return extract(open(filename).read())
+def extract_file(filename, keyword_dict={}): 
+    text = open(filename).read()
+    return extract(text, keyword_dict)
 
 
 def run(feature_file, step_file_dir, options, output=sys.stdout):
