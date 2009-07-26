@@ -3,10 +3,32 @@
 
 from env import *
 import unittest, pyeature
+from argument_test import ArgumentParserTestCase
 
-class LanguageTestCase(unittest.TestCase):
+ko_text = """
+    기능: 새 기능
+
+    시나리오: 이런 시나리오가 있습니다
+
+    처음에 조건1이 있고
+    그리고 조건2가 있을 때
+
+    만약 내가 어떤 행동1을 하고
+
+    그러면 결과1이 나타나고
+    그리고 결과2이 나타나고
+    그리고 결과3도 나타난다.
+"""
+
+class KeywordDictionaryTestCase(ArgumentParserTestCase):
+    def setUp(self):
+        ArgumentParserTestCase.setUp(self)
+
+
     def test_receiving_keyword_dictionary(self):
         en_keyword_dict = {
+            'feature': 'Feature',
+            'scenario': 'Scenario',
             'given': 'Given',
             'when': 'When',
             'then': 'Then',
@@ -41,26 +63,19 @@ class LanguageTestCase(unittest.TestCase):
             'and': '그리고',
         }
 
-        ko_text = """
-            기능: 새 기능
-
-            시나리오: 이런 시나리오가 있습니다
-
-            처음에 조건1이 있고
-            그리고 조건2가 있을 때
-
-            만약 내가 어떤 행동1을 하고
-
-            그러면 결과1이 나타나고
-            그리고 결과2이 나타나고
-            그리고 결과3도 나타난다.
-        """
-
         clauses = pyeature.extract(ko_text, ko_keyword_dict)
         assert len(clauses) is 8
 
 
+    def test_language_option_loads_proper_keyword_dictionary(self):
+        # FIXME: should test that keyword_dictionary is being used under the hood
+        feature,step,options = pyeature.parse_args(['-l', 'ko'] + self.default_args)
+        clauses = pyeature.extract(ko_text, pyeature.lang[options.lang])
+        assert len(clauses) is 8
+
+
+
 if __name__ == '__main__':
-    run_test()
+    run_test('test')
 
 

@@ -121,9 +121,6 @@ class RunSampleFeatureTestCase(unittest.TestCase):
 
         # load clause methods from a sample step definition file
         self.step_filename = os.path.join(RESOURCEDIR, 'sample_step.py')
-        #filename_part = os.path.basename(self.step_filename).rsplit('.', 1)[0]
-        #module = __import__(filename_part)
-        #self.clause_methods = pyeature.Matcher().clause_methods_of(module)
         self.clause_methods = pyeature.Loader().load_steps(self.step_filename)
 
         from StringIO import StringIO
@@ -132,6 +129,7 @@ class RunSampleFeatureTestCase(unittest.TestCase):
 
     def tearDown(self):
         self.output.close()
+
 
     def test_running_clauses(self):
         ''' [실행] 불러들인 clause와 메소드를 가지고 실행한다 '''
@@ -196,21 +194,28 @@ class RunSampleFeatureTestCase(unittest.TestCase):
         self.assertRaises(NameError, self.runner.run_clauses, self.clauses)
 
 
+    def run_pyeature(self, feature=None, step=None, output=None):
+        if feature is None: feature = self.sample_filename
+        if step    is None: step    = self.step_filename
+        if output  is None: output  = self.output
+        feature,step,options = pyeature.parse_args([feature, step])
+        return pyeature.run(feature, step, options, output)
+
     def test_run_with_a_step_definition_file(self):
         ''' [실행] step 정의 파일이 주어지면 실행한다 '''
-        pyeature.run(self.sample_filename, self.step_filename, {}, self.output)
+        self.run_pyeature()
 
 
     def test_run_returns_successful_steps(self):
         ''' [실행] 성공적으로 실행한 step의 수를 리턴한다 '''
-        num = pyeature.run(self.sample_filename, self.step_filename, {}, self.output)
+        num = self.run_pyeature()
         assert num == 1
 
     def test_run_with_step_definition_directory(self):
         ''' [실행] step 정의 파일이 있는 디렉토리를 주면 실행한다 '''
-        file_run  = pyeature.run(self.sample_filename, self.step_filename, {}, self.output)
+        file_run  = self.run_pyeature()
         directory = os.path.dirname(os.path.abspath(self.step_filename))
-        directory_run = pyeature.run(self.sample_filename, directory, {}, self.output)
+        directory_run = self.run_pyeature(step=directory)
         assert file_run == directory_run
 
 

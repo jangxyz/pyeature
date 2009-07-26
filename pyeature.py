@@ -3,7 +3,7 @@
 
 import re, types, sys, traceback, os
 sys.path.append(os.getcwd())
-from optparse import OptionParser
+import optparse
 
 import pyeature
 
@@ -17,12 +17,15 @@ lang = {
         'given': 'Given', 'when': 'When', 'then': 'Then', 'and': 'And', 
     },
     'ko': {
+        'feature': '기능', 'scenario': '시나리오',
         'given': '처음에',
         'when': '만약',
         'then': '그러면',
-        'and': ['그리고', '또'],
+        'and': '그리고',
+        #'and': ['그리고', '또'],
     },
 }
+lang[None] = lang['en'] # default
 
 ##
 ##
@@ -51,10 +54,7 @@ class Patterns:
     """ patterns used to parse sentence of feature file """
 
     def __init__(self, keyword_dict={}):
-        default_dict = { 
-            FEATURE: 'Feature', SCENARIO: 'Scenario',
-            GIVEN: 'Given', WHEN: 'When', THEN: 'Then', AND: 'And', 
-        }
+        default_dict = lang['en']
         default_dict.update(keyword_dict)
         self.keyword_dict = default_dict
         
@@ -451,23 +451,23 @@ def run(feature_file, step_file_dir, options, output=sys.stdout):
     
     returns number of successful steps ran
     """
+
     # load clauses from feature and methods from step definition
-    clauses = extract_file(feature_file)
+    clauses = extract_file(feature_file, lang[options.lang])
     clause_methods = Loader().load_steps(step_file_dir)
 
     # run clauses
     return Runner(clause_methods, output=output).run_clauses(clauses)
 
 
-def parse_args():
+def parse_args(args=sys.argv[1:]):
     # set options to parse
     usage = "usage: %prog [options] some.feature [some_step.py]"
-    parser = OptionParser(usage=usage)
+    parser = optparse.OptionParser(usage=usage)
     parser.add_option("-q", "--quiet", dest="quiet", action="store_true", default=False, help="be quite, and only return 0 or some other value that indicates whether all test ran successfully or not")
     parser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help="be more verbose, and print additional information while running")
-    parser.add_option("-l", "--language", metavar="LANG", dest="language", default='en', help="target language to parse (default en)")
-
-    (options, args) = parser.parse_args()
+    parser.add_option("-l", "--language", metavar="LANG", dest="lang", default='en', help="target language to parse (default en)")
+    (options, args) = parser.parse_args(args)
 
     # rest of arguments
     if len(args) < 1:
@@ -480,30 +480,13 @@ def parse_args():
         dirname = os.path.dirname(os.path.abspath(feature_file))
         step_definition_directory = os.path.join( dirname, 'step_definitions' )
         if not os.path.isdir(step_definition_directory):
-            raise Exception
+            raise IOError("no such directory: '%s'" % step_definition_directory)
 
     return feature_file, step_definition_directory, options
 
 
-
 if __name__ == '__main__':
-            
-#    try:
-#        feature_file = sys.argv[1]
-#        if len(sys.argv) >= 3:
-#            step_definition_directory = sys.argv[2]
-#        else:
-#            dirname = os.path.dirname(os.path.abspath(feature_file))
-#            step_definition_directory = os.path.join( dirname, 'step_definitions' )
-#            if not os.path.isdir(step_definition_directory):
-#                raise Exception
-#    except:
-#        prog_name = sys.argv[0].rsplit(os.sep, 1)[-1]
-#        sys.exit("""You must tell me the feature file and step definition file.
-#
-#    Usage: %s some.feature some_step.py
-#        """ % prog_name)
-
     feature_file, step_definition_directory, options = parse_args()
     run(feature_file, step_definition_directory, options)
+
 
